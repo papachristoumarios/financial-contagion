@@ -3,6 +3,7 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 import multiprocessing
+from ortools.linear_solver import pywraplp
 
 def generate_financial_network(n, p):
     G = nx.gnp_random_graph(n, p)
@@ -23,6 +24,33 @@ def process_financial_network(G):
         else:
             A[i] /= P_bar[i]
     return G, adj, B, P, P_bar, C, A
+
+def eisenberg_noe_bailout_total_budget_given_shock(args):
+
+    P_bar, A, C, X, B = args
+
+    n = A.shape[0]
+
+    # Create solver
+    solver = pywraplp.Solver.CreateSolver('GLOP')
+
+    # Create variables p_i
+    variables = [solver.NumVar(0, P_bar[i, 0], 'p{}'.format(i)) for i in range(n)]
+    subsidies = [solver.NumVar(0, solver.infinity(), 'y{}'.format(i)) for i in range(n)]
+
+    # Create constraints
+    for i in range(n):
+        solver.Add(sum([(int(i == j) - A[j, i]) * variables[j] for j in range(n)]) <= C[i, 0] - X[i, 0] + subsidies[i])
+
+    solver.Add(sum(subsidies) <= B)
+
+    # Objective
+    solver.Maximize(sum([variables[i] / P_bar[i, 0] for i in range(n)]))
+
+    # Solve LP
+    status = solver.Solve()
+
+    return solver.Objective().Value()
 
 def eisenberg_noe(P_bar, A, C, X, n_iters=15):
     P_eq = P_bar
@@ -71,6 +99,23 @@ def eisenberg_noe_bailout(P_bar, A, C, L, S, u, num_iters=10):
 
     return marginal_gain_total / num_iters
 
+def eisenberg_noe_bailout_total_budget(P_bar, A, C, B, num_iters=10):
+    marginal_gain_total = 0
+    shocks = []
+
+    for i in range(num_iters):
+        X = np.zeros_like(C)
+        for i in range(len(X)):
+            X[i] = np.random.randint(low=0, high=1+int(C[i]))
+        shocks.append(X)
+
+    pool = multiprocessing.Pool(6)
+    args = [(P_bar, A, C, X, B) for X in shocks]
+    marginal_gains = pool.map(eisenberg_noe_bailout_total_budget_given_shock, args)
+
+    marginal_gain_total = sum(marginal_gains)
+
+    return marginal_gain_total / num_iters
 
 if __name__ == '__main__':
     with open('cb.pickle', 'rb') as f:
@@ -81,6 +126,9 @@ if __name__ == '__main__':
     n = len(G)
 
     G, adj, B, P, P_bar, C, A = process_financial_network(G)
+
+    print(eisenberg_noe_bailout_total_budget(P_bar, A, C, 100, num_iters=10))
+
 
     expected_numer_of_saved_nodes_no_intervention = eisenberg_noe_bailout(P_bar, A, C, 0, set(), None)
 
