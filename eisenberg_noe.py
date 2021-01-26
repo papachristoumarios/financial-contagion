@@ -1,9 +1,14 @@
 import pickle
+import tqdm
 import numpy as np
 import networkx as nx
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import multiprocessing
 from ortools.linear_solver import pywraplp
+
+pool = multiprocessing.Pool(10)
 
 def generate_financial_network(n, p):
     G = nx.gnp_random_graph(n, p)
@@ -81,7 +86,7 @@ def eisenberg_noe_bailout_given_shock(args):
     marginal_gain = num_saved_with_u - num_saved_without_u
     return marginal_gain
 
-def eisenberg_noe_bailout(P_bar, A, C, L, S, u, num_iters=10):
+def eisenberg_noe_bailout(P_bar, A, C, L, S, u, num_iters=10, n_workers=1):
     marginal_gain_total = 0
     shocks = []
 
@@ -91,12 +96,18 @@ def eisenberg_noe_bailout(P_bar, A, C, L, S, u, num_iters=10):
             X[i] = np.random.randint(low=0, high=1+int(C[i]))
         shocks.append(X)
 
-    pool = multiprocessing.Pool(6)
     args = [(P_bar, A, C, X, L, S, u) for X in shocks]
-    marginal_gains = pool.map(eisenberg_noe_bailout_given_shock, args)
+    if n_workers > 1:
+        pool = multiprocessing.Pool(10) 
+        marginal_gains = pool.map(eisenberg_noe_bailout_given_shock, args)
+        pool.terminate()
+        del pool
+        marginal_gain_total = sum(marginal_gains)
+    else:
+        for arg in args:
+            marginal_gain_total += eisenberg_noe_bailout_given_shock(arg)
 
-    marginal_gain_total = sum(marginal_gains)
-
+    
     return marginal_gain_total / num_iters
 
 def eisenberg_noe_bailout_total_budget(P_bar, A, C, B, num_iters=10):
@@ -132,12 +143,12 @@ if __name__ == '__main__':
 
     expected_numer_of_saved_nodes_no_intervention = eisenberg_noe_bailout(P_bar, A, C, 0, set(), None)
 
-    L = 100
+    L = P_bar.max()
     min_num_default, min_num_default_arg = n, None
 
-    k = 10
+    k = len(G)
     k_range = np.arange(k)
-    V = set(range(n))
+    V = set(list(G.nodes()))
     S = set()
 
     centralities = nx.algorithms.centrality.betweenness_centrality(G)
@@ -151,15 +162,17 @@ if __name__ == '__main__':
     expected_number_of_saved_nodes_out_degrees = []
 
     for i in k_range:
+        print(i)
         best, best_arg = -1, None
-
+        pbar = tqdm.tqdm(range(len(G) - i))
         for u in V - S:
             value = eisenberg_noe_bailout(P_bar, A, C, L, S | {u}, None)
-
+            pbar.update()
             if value >= best:
                 best = value
                 best_arg = u
 
+        pbar.close()
         S |= {best_arg}
 
         expected_number_of_saved_nodes_greedy.append(best)
@@ -179,4 +192,5 @@ if __name__ == '__main__':
     plt.plot(k_range, expected_number_of_saved_nodes_centralities, label='Top-k Centralities')
     plt.plot(k_range, expected_number_of_saved_nodes_out_degrees, label='Top-k Out-degrees')
     plt.legend()
-    plt.show()
+    plt.savefig('bailouts.png')
+    #plt.show()

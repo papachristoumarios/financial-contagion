@@ -1,7 +1,10 @@
 import pandas as pd
 import networkx as nx
-import swifter
+#import swifter
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 import numpy as np
 import collections
 import pickle
@@ -29,7 +32,7 @@ def create_edge(transaction):
     amount = float(transaction['amount'])
     G.add_edge(u, v, weight=amount)
 
-transactions.swifter.apply(create_edge, axis=1)
+transactions.apply(create_edge, axis=1)
 
 with open('cb.pickle', 'wb+') as f:
     pickle.dump(G, f)
