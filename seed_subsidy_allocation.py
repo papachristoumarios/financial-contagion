@@ -159,6 +159,8 @@ if __name__ == '__main__':
         v = 1 - beta
     elif args.obj == 'SoIP':
         v = beta
+    elif args.obj == 'FS':
+        v = 1 / P_bar
 
     n = len(G)
 
