@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import pandas as pd
 import warnings
-import pystan
 from sklearn.linear_model import LinearRegression
 warnings.filterwarnings("ignore")
 
@@ -44,44 +43,50 @@ def load_german_banks_dataset():
 
     return data, A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, p, external_assets, external_liabilities, wealth, G
 
+def pareto_fit_helper(data):
+    params = scipy.stats.pareto.fit(data)
+    return 'Pareto Fit: b = {}, loc = {}, scale = {}'.format(round(params[0], 1), round(params[1], 1), round(params[2], 1))
 
 def plot_german_banks_dataset(data, A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, p, external_assets, external_liabilities, wealth, G):
 
+    print('Number of edges', outdegree.sum())
+    print('ER estimate', p)
+    print('Mean outdegree', outdegree.mean())
 
-    plt.figure()
+    plt.figure(figsize=(10, 10))
     positive_liabilities = liabilities[np.where(liabilities > 0)].flatten()
-    sns.distplot(positive_liabilities, kde=False, fit=scipy.stats.pareto, label='Liabilities distribution')
+    sns.distplot(positive_liabilities, kde=False, fit=scipy.stats.pareto, label='Liabilities distribution {}'.format(pareto_fit_helper(positive_liabilities)))
     plt.xlim(0, positive_liabilities.max())
     plt.title('Liabilities Distribution')
     plt.legend()
     plt.savefig('german_banks_liabilities_distribution.png')
 
 
-    plt.figure()
+    plt.figure(figsize=(10, 10))
     jointplot = sns.jointplot(data=data, x="Ext. Liability", y="Ext. Asset", kind='reg')
     pearson_corr = scipy.stats.pearsonr(data['Ext. Asset'], data['Ext. Liability'])[0]
     coeffs = np.round(np.polyfit(external_liabilities.flatten(), external_assets.flatten(), deg=1), 2)
-    jointplot.fig.suptitle('$R^2 = {}$, $a = {}$, $b = {}$'.format(pearson_corr, coeffs[0], coeffs[1]))
+    jointplot.fig.suptitle('$R^2 = {}$, $a = {}$, $b = {}$'.format(round(pearson_corr, 3), round(coeffs[0], 2), round(coeffs[1], 2)), fontsize=12)
     jointplot.fig.tight_layout()
     jointplot.fig.subplots_adjust(top=0.95)
     plt.savefig('german_banks_assets_liabilities_distribution.png')
 
-    plt.figure()
-    sns.distplot(data['Equity'], kde=False, fit=scipy.stats.pareto, label='Wealth')
+    plt.figure(figsize=(10, 10))
+    sns.distplot(data['Equity'], kde=False, fit=scipy.stats.pareto, label='Wealth {}'.format(pareto_fit_helper(data['Equity'])))
     plt.xlim(0, data['Equity'].max())
     plt.title('Equity Distribution')
     plt.legend()
     plt.savefig('german_banks_equity_distribution.png')
 
-    plt.figure()
-    sns.distplot(external_assets, kde=False, fit=scipy.stats.pareto, label='External Assets')
+    plt.figure(figsize=(10, 10))
+    sns.distplot(external_assets, kde=False, fit=scipy.stats.pareto, label='External Assets {}'.format(pareto_fit_helper(external_assets)))
     sns.distplot(external_liabilities, kde=False,
-                 fit=scipy.stats.pareto, label='External Liabilities')
+                 fit=scipy.stats.pareto, label='External Liabilities {}'.format(pareto_fit_helper(external_liabilities)))
     plt.xlim(0, external_assets.max())
     plt.legend()
     plt.savefig('german_bank_external_assets_liabilities_distribution.png')
 
-    plt.figure()
+    plt.figure(figsize=(10, 10))
     ax = plt.gca()
     ax.set_title('Financial Network with $p = {}$'.format(round(p, 2)))
     pos = nx.shell_layout(G)
@@ -90,38 +95,6 @@ def plot_german_banks_dataset(data, A, P_bar, liabilities, adj, internal_assets,
     plt.savefig('german_banks_financial_network.png')
 
     plt.show()
-
-def fit_financial_network(n, liabilities, external_assets):
-
-    model_code = '''
-        data {
-            int n;
-            // int[n * n] adj_flatten;
-            // vector<lower=0>[n * n] liabilities_flattened;
-            vector<lower=0>[n] external_assets;
-        }
-
-        parameters {
-            // real<lower=0, upper=1> p;
-            // real<lower=1> alpha_liab;
-            real<lower=1> alpha_external_assets;
-            // real<lower=0> x_min_liab;
-            real<lower=0> x_min_external_assets;
-        }
-
-        model {
-            //adj_flatten ~ bernoulli(p);
-            //positive_liabilities ~ pareto(alpha_liab, x_min_liab);
-            external_assets ~ pareto(alpha_external_assets, x_min_external_assets);
-            //liabilities_flattened = adj_flatten * positive_liabilities;
-        }
-    '''
-
-    model_data = {'n': n, 'liabilities_flattened' : liabilities.flatten(), 'adj_flatten': (liabilities > 0).astype(np.int64), 'external_assets' : external_assets.flatten() }
-
-    sm = pystan.StanModel(model_code=model_code)
-    fit = sm.sampling(data=model_data, iter=1000, chains=4)
-
 
 if __name__ == '__main__':
     data, A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, p, external_assets, external_liabilities, wealth, G = load_german_banks_dataset()

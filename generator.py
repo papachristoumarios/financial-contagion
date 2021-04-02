@@ -1,15 +1,16 @@
 import networkx as nx
-import pystan
 import numpy as np
 
-def generate_random_data(seed, random_graph='ER', distribution='exponential', alpha=0.14):
-    n = 10
-    if random_graph == 'ER':
+def generate_random_data(seed=42, random_graph='ER', distribution='exponential', alpha=0.14, G=None, n=10):
+    if random_graph == 'ER' and not G:
         G = generate_er(n, p=0.8, seed=seed)
-    elif random_graph == 'SF':
+    elif random_graph == 'SF' and not G:
         G = generate_scale_free(n, alpha=2, seed=seed)
-    elif random_graph == 'CP':
+    elif random_graph == 'CP' and not G:
         G = generate_core_periphery(n, p=0.7, seed=seed)
+
+    if G:
+        n = len(G)
 
     distributions = {
         'exponential' : lambda size: np.random.exponential(1, size=size),

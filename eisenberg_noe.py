@@ -89,6 +89,48 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
 
     return S, fractional_stimuli, sol, opt_lp
 
+def eisenberg_noe_bailout_randomized_rounding_min_default_given_shock(args):
+
+    P_bar, A, C, X, L, k, eps, tol = args
+
+    n = A.shape[0]
+
+    # Create solver
+    solver = pywraplp.Solver.CreateSolver('GLOP')
+
+    # Create variables p_i
+    min_var = solver.NumVar(0, 1, 's')
+    payment_variables = [solver.NumVar(0, P_bar[i, 0], 'p{}'.format(i)) for i in range(n)]
+    stimuli_variables = [solver.NumVar(0, 1, 'z{}'.format(i)) for i in range(n)]
+
+    # Create constraints
+    for i in range(n):
+        solver.Add(sum([(int(i == j) - A[j, i]) * payment_variables[j]
+                        for j in range(n)]) <= C[i, 0] - X[i, 0] + L * stimuli_variables[i])
+        solver.Add(payment_variables[i] >= min_var * P_bar[i, 0])
+
+    solver.Add(sum(stimuli_variables) == k)
+
+    # Objective
+    solver.Maximize(min_var + eps / (2 * k * L) * sum(payment_variables))
+
+    # Solve LP
+    status = solver.Solve()
+
+    fractional_stimuli = np.array([z.solution_value() for z in stimuli_variables])
+
+    while True:
+        uniform_variables = np.random.uniform(size=fractional_stimuli.shape)
+        realized_stimuli = (uniform_variables <= fractional_stimuli).astype(np.float64)
+
+        if np.isclose(realized_stimuli.sum(), k, atol=tol):  # Tol should be something like O(sqrt(k))
+            S = set(np.where(realized_stimuli == 1)[0].tolist())
+            break
+
+    sol = eisenberg_noe_bailout_min_default_given_shock((P_bar, A, C, X, L, S, None, eps))
+    opt_lp = solver.Objective().Value()
+
+    return S, fractional_stimuli, sol, opt_lp
 
 def eisenberg_noe(P_bar, A, C, X):
     P_eq = P_bar.copy()
@@ -143,6 +185,17 @@ def eisenberg_noe_bailout_given_shock(args):
 
     return (v.T @ P_eq)[0, 0]
 
+def eisenberg_noe_bailout_min_default_given_shock(args):
+    P_bar, A, C, X, L, S, u, eps = args
+    n = len(C)
+    C_temp = np.copy(C)
+    for z in S:
+        C_temp[z] += L
+    k = len(S)
+    P_eq = eisenberg_noe(P_bar, A, C_temp, X)
+
+    return (P_eq / P_bar).min() + eps / (2 * k * L) * P_eq.sum()
+
 def eisenberg_noe_bailout(P_bar, A, C, L, S, u, v, num_iters, workers):
     shocks = []
 
@@ -162,6 +215,52 @@ def eisenberg_noe_bailout(P_bar, A, C, L, S, u, v, num_iters, workers):
 
     return marginal_gains_objective_mean, marginal_gains_objective_stdev
 
+def eisenberg_noe_bailout_greedy(P_bar, A, C, L, V, S, v, num_iters, workers):
+
+    best, best_arg = (-1, -1), None
+    for u in V - S:
+        value = eisenberg_noe_bailout(
+            P_bar, A, C, L, S | {u}, None, v, num_iters=num_iters, workers=workers)
+        if value[0] >= best[0]:
+            best = value
+            best_arg = u
+
+    S |= {best_arg}
+
+    return S, best
+
+def eisenberg_noe_bailout_greedy_min_default(P_bar, A, C, L, V, S, eps, num_iters, workers):
+
+    best, best_arg = (-1, -1), None
+    for u in V - S:
+        value = eisenberg_noe_bailout_min_default(
+            P_bar, A, C, L, S | {u}, None, eps, num_iters=num_iters, workers=workers)
+        if value[0] >= best[0]:
+            best = value
+            best_arg = u
+
+    S |= {best_arg}
+
+    return S, best
+
+def eisenberg_noe_bailout_min_default(P_bar, A, C, L, S, u, eps, num_iters, workers):
+    shocks = []
+
+    for i in range(num_iters):
+        # X = generate_uniform_iid_shocks(C)
+        X = generate_beta_iid_shocks(C)
+        shocks.append(X)
+
+    args = [(P_bar, A, C, X, L, S, u, eps) for X in shocks]
+
+    with multiprocessing.pool.ThreadPool(workers) as pool:
+        marginal_gains_objectives = pool.map(
+            eisenberg_noe_bailout_min_default_given_shock, args)
+
+    marginal_gains_objective_mean = np.mean(marginal_gains_objectives)
+    marginal_gains_objective_stdev = np.std(marginal_gains_objectives, ddof=1)
+
+    return marginal_gains_objective_mean, marginal_gains_objective_stdev
 
 def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, k, v, tol, num_iters, workers):
     shocks = []
@@ -176,6 +275,37 @@ def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, k, v, tol, num_ite
     with multiprocessing.pool.ThreadPool(workers) as pool:
         marginal_gains = pool.map(
             eisenberg_noe_bailout_randomized_rounding_given_shock, args)
+
+    marginal_gains_sets = [x[0] for x in marginal_gains]
+    marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
+    marginal_gains_sol = [x[2] for x in marginal_gains]
+    marginal_gains_opt_lp = [x[3] for x in marginal_gains]
+
+    marginal_gains_sol_mean = np.mean(marginal_gains_sol)
+    marginal_gains_sol_stdev = np.std(marginal_gains_sol, ddof=1)
+
+    marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
+    marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
+
+    marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
+    marginal_gains_fractional_stimuli_stdev = np.std(
+        marginal_gains_fractional_stimuli, axis=0, ddof=1)
+
+    return marginal_gains_sol_mean, marginal_gains_sol_stdev, marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
+
+def eisenberg_noe_bailout_randomized_rounding_min_default(P_bar, A, C, L, k, eps, tol, num_iters, workers):
+    shocks = []
+
+    for i in range(num_iters):
+        # X = generate_uniform_iid_shocks(C)
+        X = generate_beta_iid_shocks(C)
+        shocks.append(X)
+
+    args = [(P_bar, A, C, X, L, k, eps, tol) for X in shocks]
+
+    with multiprocessing.pool.ThreadPool(workers) as pool:
+        marginal_gains = pool.map(
+            eisenberg_noe_bailout_randomized_rounding_min_default_given_shock, args)
 
     marginal_gains_sets = [x[0] for x in marginal_gains]
     marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
