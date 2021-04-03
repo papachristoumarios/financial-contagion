@@ -146,7 +146,7 @@ if __name__ == '__main__':
     elif args.dataset == 'eba':
         data, A, P_bar, P, adj, _, _, _, _, _, C, B, w, G = next(load_eba_dataset())
     elif args.dataset == 'venmo':
-        A, P_bar, P, adj, _, _, _, _, C, B, w, G = next(load_venmo_dataset())
+        A, P_bar, P, adj, _, _, _, _, C, B, w, G = load_venmo_dataset()
     elif args.dataset == 'random':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)

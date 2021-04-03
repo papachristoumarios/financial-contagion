@@ -1,22 +1,22 @@
 import networkx as nx
 import numpy as np
 
-def generate_random_data(seed=42, random_graph='ER', distribution='exponential', alpha=0.14, G=None, n=10):
-    if random_graph == 'ER' and not G:
+def generate_random_data(seed=42, random_graph='ER', H=None, distribution='exponential', alpha=0.14,  n=10):
+    if random_graph == 'ER':
         G = generate_er(n, p=0.8, seed=seed)
-    elif random_graph == 'SF' and not G:
+    elif random_graph == 'SF':
         G = generate_scale_free(n, alpha=2, seed=seed)
-    elif random_graph == 'CP' and not G:
+    elif random_graph == 'CP':
         G = generate_core_periphery(n, p=0.7, seed=seed)
-
-    if G:
-        n = len(G)
 
     distributions = {
         'exponential' : lambda size: np.random.exponential(1, size=size),
         'pareto' : lambda size: np.random.pareto(1, size=size),
         'lognormal' : lambda size: np.random.lognormal(0, 1, size=size)
     }
+
+
+    print(G.nodes())
 
     adj = nx.to_numpy_array(G)
     outdegree = adj.sum(0)
@@ -27,7 +27,7 @@ def generate_random_data(seed=42, random_graph='ER', distribution='exponential',
     internal_assets = liabilities.sum(-1).reshape((n, 1))
     internal_liabilities = liabilities.sum(0).reshape((n, 1))
 
-    external_assets = n * distributions[distribution]((n, 1))
+    external_assets = 1 * distributions[distribution]((n, 1))
     external_liabilities = alpha * external_assets
 
     P_bar = internal_liabilities + external_liabilities
