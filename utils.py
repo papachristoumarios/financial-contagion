@@ -26,3 +26,13 @@ def degree_plot(G, name='indegree', degree_fcn=lambda G, u: G.in_degree(u)):
     plt.legend()
 
     plt.savefig(name + '.png')
+
+def gini(x):
+    n = len(x)
+    x_bar = x.mean()
+    d = np.zeros(shape=(n, n))
+    for i in range(n):
+        for j in range(n):
+            d[i, j] = np.abs(x[i] - x[j])
+
+    return d.sum() / (2 * n**2 * x_bar)

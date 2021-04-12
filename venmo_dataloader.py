@@ -29,10 +29,7 @@ def load_venmo_data_and_extract_components(export_wcc=True, min_size=100):
 
 def load_venmo_dataset():
     for filename in glob.glob('data/venmo_wcc_*'):
-        G = nx.read_gpickle(filename)
-        # data = generate_random_data(random_graph='venmo', distribution='pareto', alpha=0.14, H=G.copy())
-        G = nx.relabel.convert_node_labels_to_integers(G)
-
+        G = nx.nx.relabel.convert_node_labels_to_integers(nx.read_gpickle(filename))
         n = len(G)
 
         distribution = 'pareto'
