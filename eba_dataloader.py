@@ -12,7 +12,7 @@ sns.set_theme()
 
 def expon_fit_helper(data):
     params = scipy.stats.expon.fit(data)
-    return 'Exp Fit: $\lambda$ = {}, loc = {}'.format(round(params[0], 1), round(params[1], 1))
+    return 'Exp Fit: scale = {}, loc = {}'.format(round(params[1], 4), round(params[0], 1))
 
 
 def preprocess_eba_data():

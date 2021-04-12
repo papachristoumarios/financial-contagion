@@ -3,7 +3,10 @@ import numpy as np
 def fair_partition(z, eps=0.01):
 	z_new = ptas_convert(z, eps)
 	result = min_sum_partition(z_new)
+<<<<<<< HEAD
 	import pdb; pdb.set_trace()
+=======
+>>>>>>> 9ea3d58b3091ef16ec1809fd0541aa43135290c1
 	return result
 
 def ptas_convert(x, eps=0.01):

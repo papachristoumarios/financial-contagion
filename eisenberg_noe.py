@@ -68,6 +68,10 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
 
     solver.Add(sum(stimuli_variables) == k)
 
+    # Fairness constraint
+    # if n_poorest > 0:
+        # solver.Add(sum([stimuli_variables[wealth[i][0]] for i in range(n_poorest)]) >= k_poorest)
+
     # Objective
     solver.Maximize(sum([v[i, 0] * payment_variables[i] for i in range(n)]))
 
@@ -144,35 +148,6 @@ def eisenberg_noe(P_bar, A, C, X):
             P_eq_prev = P_eq.copy()
 
     return P_eq
-
-def eisenberg_noe_bailout_given_shock_lp(args):
-
-    P_bar, A, C, X, L, S, u, v = args
-
-    n = A.shape[0]
-
-    # Create solver
-    solver = pywraplp.Solver.CreateSolver('GLOP')
-
-    # Create variables p_i
-    payment_variables = [solver.NumVar(0, P_bar[i, 0], 'p{}'.format(i)) for i in range(n)]
-
-    # Indicator of S
-    ind_S = np.zeros(n)
-    ind_S[np.array(list(S), dtype=np.int64)] = 1
-
-    # Create constraints
-    for i in range(n):
-        solver.Add(sum([(int(i == j) - A[j, i]) * payment_variables[j]
-                        for j in range(n)]) <= C[i, 0] - X[i, 0] + L * ind_S[i])
-
-    # Objective
-    solver.Maximize(sum([v[i, 0] * payment_variables[i] for i in range(n)]))
-
-    # Solve LP
-    status = solver.Solve()
-
-    return solver.Objective().Value()
 
 def eisenberg_noe_bailout_given_shock(args):
     P_bar, A, C, X, L, S, u, v = args

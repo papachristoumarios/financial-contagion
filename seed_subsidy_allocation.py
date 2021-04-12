@@ -4,6 +4,7 @@ from eba_dataloader import *
 from venmo_dataloader import *
 from generator import *
 from metrics import *
+from utils import *
 import seaborn as sns
 import argparse
 import matplotlib.cm as cm
@@ -18,7 +19,7 @@ def get_argparser():
     parser.add_argument('-L', type=int, default=1000000, help='Stimulus value')
     parser.add_argument('--dataset', type=str, default='german_banks',
                         help='Dataset to run simulation on', choices=['german_banks', 'eba', 'venmo', 'random'])
-    parser.add_argument('--random_graph', type=str, default='ER',
+    parser.add_argument('--random_graph', type=str, default='ER', choices=['ER', 'CP', 'SF'],
                         help='Random graph model for artificial data')
     parser.add_argument('--max_k', type=int, default=-1,
                         help='Maximum number of people to bailout through simulation')
@@ -31,6 +32,8 @@ def get_argparser():
     parser.add_argument('--num_std', type=float, default=0.5, help='Number of stds to plot in the uncertainty plot')
     parser.add_argument('--untruncated_violin', action='store_true', help='Untruncated violin plots')
     parser.add_argument('--eps', type=float, default=1e-4, help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
+    parser.add_argument('--beta', type=float, default=0, help='Fairness constraint (number of nodes to be bailed out increasing by order of wealth)')
+    parser.add_argument('--delta', type=float, default=0, help='Fairness constraint (percentage of bailouts to be given out of the k bailouts)')
 
     return parser
 
@@ -91,7 +94,7 @@ def truncated_violinplot(data):
     sns.violinplot(data=data, cut=0, inner=None, palette='husl')
     sns.categorical._ViolinPlotter.fit_kde = fit_kde_func
 
-def stimuli_plot(k_range, expected_objective_value_randomized_rounding, untruncated_violin):
+def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, untruncated_violin):
     plt.figure(figsize=(10, 10))
     mean_supports = []
 
@@ -110,8 +113,21 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, untrunca
     plt.xticks(k_range - 1, k_range)
     plt.savefig('stimuli.png')
 
-
     zs = np.vstack([result[-2] for result in expected_objective_value_randomized_rounding])
+
+    ginis = np.zeros_like(k_range).astype(np.float64)
+
+    for i in range(len(ginis)):
+        ginis[i] = gini(zs[i, :])
+
+    plt.figure(figsize=(10, 10))
+    plt.plot(k_range, ginis)
+    plt.legend()
+    plt.title('Gini Coefficients for $L = {}$'.format(L))
+    plt.xlabel('Number of bailed-out nodes $k$')
+    plt.ylabel('Gini Coefficient')
+    # plt.ylim(0, 1)
+    plt.savefig('gini.png')
 
     plt.figure(figsize=(15, 10))
     for i in range(zs.shape[-1]):
@@ -133,7 +149,7 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, untrunca
 
     eps = 10**np.log10(zs_mean[np.where(zs_mean > 0)].min())
 
-    fair_part = fair_partition(zs_mean, eps=eps)
+
 
 if __name__ == '__main__':
     args = get_argparser().parse_args()
@@ -180,6 +196,13 @@ if __name__ == '__main__':
     else:
         k_range = np.arange(1, 1 + args.max_k)
 
+    if (not 0 <= args.beta <= 1) or (not 0 <= args.delta <= 1):
+        raise Exception('Wrong values given for beta or delta. Please enter values in [0, 1]')
+    else:
+        beta = args.beta
+        delta = args.delta
+        n_poorest = int(args.beta * n)
+
     V = set(list(G.nodes()))
     S = set()
     eps = args.eps
@@ -196,6 +219,7 @@ if __name__ == '__main__':
 
     wealths = list(sorted([(v, w[v, 0]) for v in G], key=lambda x: x[-1]))
 
+
     expected_objective_value_greedy = []
     expected_objective_value_centralities = []
     expected_objective_value_out_degrees = []
@@ -207,6 +231,8 @@ if __name__ == '__main__':
 
 
     for k in k_range:
+
+        k_poorest = int(args.delta * k)
 
         if args.resource_augmentation:
             tol = k / 10
@@ -285,4 +311,4 @@ if __name__ == '__main__':
                                 'bailouts_{}_{}_{}.png'.format(args.obj, args.dataset, L), args.obj, L,
                                 num_std=args.num_std)
 
-    stimuli_plot(k_range, expected_objective_value_randomized_rounding, args.untruncated_violin)
+    stimuli_plot(k_range, expected_objective_value_randomized_rounding, args.obj, args.untruncated_violin)
