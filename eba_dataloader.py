@@ -15,7 +15,7 @@ def expon_fit_helper(data):
     return 'Exp Fit: $\lambda$ = {}, loc = {}'.format(round(params[0], 1), round(params[1], 1))
 
 
-def preprocess_glasserman_young_data():
+def preprocess_eba_data():
     data = pd.read_csv('data/glasserman_young_data.csv')
 
     data.sort_values('w_i', ascending=False, inplace=True)
@@ -91,7 +91,7 @@ def preprocess_glasserman_young_data():
     plt.show()
 
 
-def load_glasserman_young_dataset():
+def load_eba_dataset():
     data = pd.read_csv('data/glasserman_young_data.csv')
     external_liabilities = pd.read_csv(
         'data/glasserman_young_data_external_liabilities.csv').to_numpy()[:, -1]

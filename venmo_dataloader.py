@@ -40,7 +40,7 @@ def load_venmo_dataset():
 
         distributions = {
             'exponential' : lambda size: np.random.exponential(1, size=size),
-            'pareto' : lambda size: np.random.pareto(1, size=size),
+            'pareto' : lambda size: np.random.pareto(2, size=size),
             'lognormal' : lambda size: np.random.lognormal(0, 1, size=size)
         }
 
