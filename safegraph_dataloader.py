@@ -135,6 +135,13 @@ def create_eisenberg_noe_data(G):
     for i in range(n):
         A[i] /= P_bar[i]
 
+    np.savetxt('safegraph_liability_matrix.csv', P, delimiter=',')
+    np.savetxt('safegraph_external_liabilities.csv', B, delimiter=',')
+    np.savetxt('safegraph_external_assets.csv', C, delimiter=',')
+    np.savetxt('safegraph_proportional_liability_matrix.csv', A, delimiter=',')
+    np.savetxt('safegraph_bailouts.csv', L, delimiter=',')
+
+
 args = get_argparser()
 
 # Read geographic data relating (lat, lon) to cbg
@@ -324,7 +331,6 @@ for x, data in G.nodes(data=True):
             expenses = G.out_degree(x) * expenses['monthly_expenses_per_employee'].mean() 
         else:
             expenses = G.out_degree(x) * expenses['monthly_expenses_per_employee'].iloc[0]
-            print('foo')
 
         business_external_liabilities[x] = max(100, expenses - total_weight)
 
