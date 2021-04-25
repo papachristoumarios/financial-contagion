@@ -129,17 +129,17 @@ def create_eisenberg_noe_data(G):
         C[u] += data.get('assets', 0)
         B[u] += data.get('liabilities', 0)
 
-    P_bar = B + P.sum(0).reshape(n, 1)
+    P_bar = B + P.sum(-1).reshape(n, 1)
 
     A = np.copy(P)
     for i in range(n):
         A[i] /= P_bar[i]
 
-    np.savetxt('safegraph_liability_matrix.csv', P, delimiter=',')
-    np.savetxt('safegraph_external_liabilities.csv', B, delimiter=',')
-    np.savetxt('safegraph_external_assets.csv', C, delimiter=',')
-    np.savetxt('safegraph_proportional_liability_matrix.csv', A, delimiter=',')
-    np.savetxt('safegraph_bailouts.csv', L, delimiter=',')
+    np.savetxt('data/safegraph/safegraph_liability_matrix.csv', P, delimiter=',')
+    np.savetxt('data/safegraph/safegraph_external_liabilities.csv', B, delimiter=',')
+    np.savetxt('data/safegraph/safegraph_external_assets.csv', C, delimiter=',')
+    np.savetxt('data/safegraph/safegraph_proportional_liability_matrix.csv', A, delimiter=',')
+    np.savetxt('data/safegraph/safegraph_bailouts.csv', L, delimiter=',')
 
 
 args = get_argparser()
