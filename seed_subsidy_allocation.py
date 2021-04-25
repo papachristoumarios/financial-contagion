@@ -8,7 +8,8 @@ from utils import *
 import seaborn as sns
 import argparse
 import matplotlib.cm as cm
-
+import random
+import copy
 
 def get_argparser():
     parser = argparse.ArgumentParser(
@@ -156,6 +157,12 @@ if __name__ == '__main__':
     seed = args.seed
     workers = args.workers
     sns.set_theme()
+    LARGE_SIZE = 16
+    plt.rc('axes', labelsize=LARGE_SIZE)
+    plt.rc('axes', titlesize=LARGE_SIZE)
+
+    np.random.seed(seed)
+    random.seed(seed)
 
     if args.dataset == 'german_banks':
         data, A, P_bar, P, adj, _, _, _, _, _, C, B, w, G = load_german_banks_dataset()
@@ -219,6 +226,9 @@ if __name__ == '__main__':
 
     wealths = list(sorted([(v, w[v, 0]) for v in G], key=lambda x: x[-1]))
 
+    random_order = list(copy.deepcopy(V))
+    random.shuffle(random_order)
+
 
     expected_objective_value_greedy = []
     expected_objective_value_centralities = []
@@ -226,6 +236,7 @@ if __name__ == '__main__':
     expected_objective_value_pageranks = []
     expected_objective_value_wealths = []
     expected_objective_value_randomized_rounding = []
+    expected_objective_value_random = []
 
     pbar = tqdm.tqdm(k_range)
 
@@ -265,6 +276,11 @@ if __name__ == '__main__':
             expected_objective_value_wealths.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_wealths, None, v, num_iters=num_iters, workers=workers))
 
+            S_random = set(random_order[:k])
+
+            expected_objective_value_random.append(eisenberg_noe_bailout(
+                P_bar, A, C, L, S_random, None, v, num_iters=num_iters, workers=workers))
+
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding(
                 P_bar, A, C, L, k, v, tol=tol, num_iters=num_iters, workers=workers))
 
@@ -294,6 +310,11 @@ if __name__ == '__main__':
             expected_objective_value_wealths.append(eisenberg_noe_bailout_min_default(
                 P_bar, A, C, L, S_wealths, None, eps, num_iters=num_iters, workers=workers))
 
+            S_random = set(random_order[:k])
+
+            expected_objective_value_random.append(eisenberg_noe_bailout(
+                P_bar, A, C, L, S_random, None, eps, num_iters=num_iters, workers=workers))
+
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding_min_default(
                 P_bar, A, C, L, k, eps, tol=tol, num_iters=num_iters, workers=workers))
 
@@ -307,7 +328,8 @@ if __name__ == '__main__':
                                 (expected_objective_value_out_degrees, 'Top-k Outdegrees'),
                                 (expected_objective_value_pageranks, 'Top-k Pagerank'),
                                 (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
-                                (expected_objective_value_randomized_rounding, 'Randomized Rounding')],
+                                (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
+                                (expected_objective_value_random, 'Random Permutation')],
                                 'bailouts_{}_{}_{}.png'.format(args.obj, args.dataset, L), args.obj, L,
                                 num_std=args.num_std)
 
