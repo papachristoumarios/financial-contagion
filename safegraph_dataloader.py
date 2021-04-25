@@ -26,6 +26,8 @@ def get_argparser():
     parser.add_argument('--expenditures_data', default='/home/mp2242/consumer-expenditures')
     parser.add_argument('--lat', default=42.439499559524485, type=float)
     parser.add_argument('--lon', default=-76.49499020058316, type=float)
+    parser.add_argument('--business_assets', default='/home/mp2242/business-assets')
+    parser.add_argument('--business_expenses', default='/home/mp2242/business-expenses')
 
     return parser.parse_args()
 
@@ -101,6 +103,9 @@ def create_multi_graph(patterns, expenditures):
 
             weight = cbg_non_workers * expenditure_naics / expenditures_freq[cbg][naics_code_prefix] 
             [G.add_edge(int(cbg), x['placekey'], weight=weight) for _ in range(cbg_non_workers)]
+    
+
+    nx.set_node_attributes(G, patterns.set_index('placekey')['naics_code'].to_dict(), 'naics_code')
 
     return G
 
@@ -129,11 +134,6 @@ def create_eisenberg_noe_data(G):
     A = np.copy(P)
     for i in range(n):
         A[i] /= P_bar[i]
-
-    print('external liabilities')
-    print(B)
-    print('external assets')
-    print(C)
 
 args = get_argparser()
 
@@ -220,12 +220,24 @@ loans = loans[loans.index.isin(patterns['placekey'])]
 # Consumer Expenditures
 expenditures = pd.read_csv(os.path.join(args.expenditures_data, 'expenditures.csv'))
 
+# Business Assets
+business_assets = pd.read_csv(os.path.join(args.business_assets, 'assets.csv'))
+
+# Business Expenses
+business_expenses = pd.read_csv(os.path.join(args.business_expenses, 'expenses_processed.csv'))
+
 # Create multi-graph topology
 G = create_multi_graph(patterns, expenditures)
 
 # Create node attributes
 loans_amount = loans['amount'] / 12
 loans_amount = loans['amount'].to_dict()
+
+for x in G.nodes():
+    if isinstance(x, str):
+        if x in loans_amount:
+            loans_amount[x] = G.out_degree(x) * loans_amount[x]
+
 nx.set_node_attributes(G, loans_amount, 'L')
 
 loans_race = loans['race'].to_dict()
@@ -236,6 +248,8 @@ households_dependents_avg = collections.defaultdict(float)
 num_households = collections.defaultdict(int)
 households_bailouts = collections.defaultdict(float)
 households_external_assets = collections.defaultdict(float)
+business_external_assets = collections.defaultdict(float)
+business_external_liabilities = collections.defaultdict(float)
 
 annual_expenditures = 63000
 monthly_expenditures = annual_expenditures / 12
@@ -277,16 +291,46 @@ for x in G.nodes():
             for key, val in G.get_edge_data(cbg, x).items():
                 G[cbg][x][key]['weight'] = G[cbg][x][key]['weight'] / households_dependents_avg[cbg]
 
-for cbg in G.nodes():
-    if isinstance(cbg, int):
-        for x in G.successors(cbg):
-            total_weight = 0
-            for key, val in G.get_edge_data(cbg, x).items():
-                total_weight += G[cbg][x][key]['weight']
+for x, data in G.nodes(data=True):
 
-            households_external_liabilities[cbg] = 1000 + max(0, num_households[cbg] * monthly_expenditures - total_weight)
+    if isinstance(x, int):
+        total_weight = 0
+        for y in G.successors(x):
+            for key, val in G.get_edge_data(x, y).items():
+                total_weight += G[x][y][key]['weight']
+        households_external_liabilities[x] = max(100, num_households[x] * monthly_expenditures - total_weight)
+    
+    elif isinstance(x, str):
+        total_weight = 0
+        for y in G.predecessors(x):
+            for key, val in G.get_edge_data(y, x).items():
+                total_weight += G[y][x][key]['weight']
+        naics_code_prefix = int(str(data['naics_code'])[:2])
+        assets = business_assets[business_assets['naics_code_prefix'] == naics_code_prefix]
+        if assets.empty:
+            assets = business_assets['monthly_revenue'].mean()
+        else:
+            assets = assets['monthly_revenue'].iloc[0]
+
+        business_external_assets[x] = max(0, assets - total_weight)
+
+        total_weight = 0
+        for y in G.successors(x):
+            for key, val in G.get_edge_data(x, y).items():
+                total_weight += G[x][y][key]['weight']
+
+        expenses = business_expenses[business_expenses['naics_code'] == data['naics_code']]
+        if expenses.empty:
+            expenses = G.out_degree(x) * expenses['monthly_expenses_per_employee'].mean() 
+        else:
+            expenses = G.out_degree(x) * expenses['monthly_expenses_per_employee'].iloc[0]
+            print('foo')
+
+        business_external_liabilities[x] = max(100, expenses - total_weight)
 
 nx.set_node_attributes(G, households_external_liabilities, 'liabilities')
+nx.set_node_attributes(G, business_external_assets, 'assets')
+nx.set_node_attributes(G, business_external_liabilities, 'liabilities')
 
 create_eisenberg_noe_data(G)
 nx.write_gpickle(G, "safegraph.gpickle")
