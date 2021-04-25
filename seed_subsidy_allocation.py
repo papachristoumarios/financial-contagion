@@ -2,6 +2,7 @@ from eisenberg_noe import *
 from german_banks_dataloader import *
 from eba_dataloader import *
 from venmo_dataloader import *
+from safegraph_dataloader import *
 from generator import *
 from metrics import *
 from utils import *
@@ -19,7 +20,7 @@ def get_argparser():
                         help='Number of iterations for Monte Carlo approximation')
     parser.add_argument('-L', type=int, default=1000000, help='Stimulus value')
     parser.add_argument('--dataset', type=str, default='german_banks',
-                        help='Dataset to run simulation on', choices=['german_banks', 'eba', 'venmo', 'random'])
+                        help='Dataset to run simulation on', choices=['german_banks', 'eba', 'venmo', 'safegraph', 'random'])
     parser.add_argument('--random_graph', type=str, default='ER', choices=['ER', 'CP', 'SF'],
                         help='Random graph model for artificial data')
     parser.add_argument('--max_k', type=int, default=-1,
@@ -170,9 +171,13 @@ if __name__ == '__main__':
         data, A, P_bar, P, adj, _, _, _, _, _, C, B, w, G = next(load_eba_dataset())
     elif args.dataset == 'venmo':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = load_venmo_dataset()
+    elif args.dataset == 'safegraph':
+        A, P_bar, P, C, B, _, w, G = load_safegraph_dataset()
     elif args.dataset == 'random':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)
+
+    import pdb; pdb.set_trace()
 
     beta = B / P_bar
 

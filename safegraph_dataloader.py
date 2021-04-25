@@ -140,17 +140,21 @@ def create_eisenberg_noe_data(G):
     np.savetxt('data/safegraph/safegraph_external_assets.csv', C, delimiter=',')
     np.savetxt('data/safegraph/safegraph_proportional_liability_matrix.csv', A, delimiter=',')
     np.savetxt('data/safegraph/safegraph_bailouts.csv', L, delimiter=',')
+    nx.write_gpickle(G, "data/safegraph/graph.gpickle")
 
-def load_safegraph_data():
+def load_safegraph_dataset():
+    G = nx.DiGraph(nx.read_gpickle('data/safegraph/graph.gpickle'))
+    n = len(G)
 
     P = np.genfromtxt('data/safegraph/safegraph_liability_matrix.csv', delimiter=',')
-    B = np.genfromtxt('data/safegraph/safegraph_external_liabilities.csv', delimiter=',')
-    C = np.genfromtxt('data/safegraph/safegraph_external_assets.csv', delimiter=',')
-    A = np.genfromtxt('data/safegraph/safegraph_proportional_liability_matrix.csv', delimiter=',')
-    L = np.genfromtxt('data/safegraph/safegraph_bailouts.csv', delimiter=',')
-    G = nx.read_gpickle('data/safegraph/graph.gpickle')
+    B = np.genfromtxt('data/safegraph/safegraph_external_liabilities.csv', delimiter=',', dtype=np.float64).reshape(n, 1)
+    C = np.genfromtxt('data/safegraph/safegraph_external_assets.csv', delimiter=',', dtype=np.float64).reshape(n, 1)
+    A = np.genfromtxt('data/safegraph/safegraph_proportional_liability_matrix.csv', delimiter=',', dtype=np.float64)
+    L = np.genfromtxt('data/safegraph/safegraph_bailouts.csv', delimiter=',', dtype=np.float64).reshape(n, 1)
+    P_bar = B + P.sum(-1).reshape(n, 1)
+    w = C + P.sum(0).reshape(n, 1) - P_bar
 
-
+    return A, P_bar, P, C, B, L, w, G
 
 if __name__ == '__main__':
     args = get_argparser()
@@ -350,4 +354,3 @@ if __name__ == '__main__':
     nx.set_node_attributes(G, business_external_liabilities, 'liabilities')
 
     create_eisenberg_noe_data(G)
-    nx.write_gpickle(G, "data/safegraph/graph.gpickle")
