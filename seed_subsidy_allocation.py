@@ -177,7 +177,6 @@ if __name__ == '__main__':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)
 
-    import pdb; pdb.set_trace()
 
     beta = B / P_bar
 
