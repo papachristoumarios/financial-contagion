@@ -12,10 +12,12 @@ import matplotlib.cm as cm
 import random
 import copy
 
+
 def get_argparser():
     parser = argparse.ArgumentParser(
         description='Discrete stimulus allocation algorithm to maximize SoP, SoT, or SoIT objectives.')
-    parser.add_argument('--obj', type=str, default='SoP', help='Type of objective (SoP, SoT, SoIT)', choices=['SoP', 'SoT', 'SoIP', 'FS', 'AS', 'MD'])
+    parser.add_argument('--obj', type=str, default='SoP', help='Type of objective (SoP, SoT, SoIT)',
+                        choices=['SoP', 'SoT', 'SoIP', 'FS', 'AS', 'MD'])
     parser.add_argument('--num_iters', type=int, default=-1,
                         help='Number of iterations for Monte Carlo approximation')
     parser.add_argument('-L', type=int, default=1000000, help='Stimulus value')
@@ -31,11 +33,16 @@ def get_argparser():
     parser.add_argument('--shocks_distribution', type=str, default='beta')
     parser.add_argument('--assets_distribution', type=str, default='exponential')
     parser.add_argument('--workers', type=int, default=1, help='Number of workers')
-    parser.add_argument('--num_std', type=float, default=0.5, help='Number of stds to plot in the uncertainty plot')
-    parser.add_argument('--untruncated_violin', action='store_true', help='Untruncated violin plots')
-    parser.add_argument('--eps', type=float, default=1e-4, help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
-    parser.add_argument('--beta', type=float, default=0, help='Fairness constraint (number of nodes to be bailed out increasing by order of wealth)')
-    parser.add_argument('--delta', type=float, default=0, help='Fairness constraint (percentage of bailouts to be given out of the k bailouts)')
+    parser.add_argument('--num_std', type=float, default=0.5,
+                        help='Number of stds to plot in the uncertainty plot')
+    parser.add_argument('--untruncated_violin', action='store_true',
+                        help='Untruncated violin plots')
+    parser.add_argument('--eps', type=float, default=1e-4,
+                        help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
+    parser.add_argument('--beta', type=float, default=0,
+                        help='Fairness constraint (number of nodes to be bailed out increasing by order of wealth)')
+    parser.add_argument('--delta', type=float, default=0,
+                        help='Fairness constraint (percentage of bailouts to be given out of the k bailouts)')
 
     return parser
 
@@ -59,7 +66,6 @@ def uncertainty_plot(k_range, results, outfile, obj, L, num_std=0.5, show=False)
             plt.fill_between(k_range, result_means - num_std * result_std,
                              result_means + num_std * result_std, color=c, alpha=0.3)
 
-
         c = next(colors)
         plt.plot(k_range, result_means, c=c, label=label)
         plt.fill_between(k_range, result_means - num_std * result_std,
@@ -67,10 +73,11 @@ def uncertainty_plot(k_range, results, outfile, obj, L, num_std=0.5, show=False)
 
     plt.legend()
     plt.xlim(k_range[0], k_range[-1])
-    plt.savefig(outfile)
+    plt.savefig('bailouts_' + outfile)
 
     if show:
         plt.show()
+
 
 def truncated_violinplot(data):
     fit_kde_func = sns.categorical._ViolinPlotter.fit_kde
@@ -84,9 +91,9 @@ def truncated_violinplot(data):
         kde_evaluate = kde.evaluate
 
         def truncated_kde_evaluate(x):
-            val = np.where((x>=lb)&(x<=ub), kde_evaluate(x), 0)
-            val += np.where((x>=lb)&(x<=ub), kde_evaluate(lb-x), 0)
-            val += np.where((x>lb)&(x<=ub), kde_evaluate(ub-(x-ub)), 0)
+            val = np.where((x >= lb) & (x <= ub), kde_evaluate(x), 0)
+            val += np.where((x >= lb) & (x <= ub), kde_evaluate(lb-x), 0)
+            val += np.where((x > lb) & (x <= ub), kde_evaluate(ub-(x-ub)), 0)
             return val
 
         kde.evaluate = truncated_kde_evaluate
@@ -96,7 +103,8 @@ def truncated_violinplot(data):
     sns.violinplot(data=data, cut=0, inner=None, palette='husl')
     sns.categorical._ViolinPlotter.fit_kde = fit_kde_func
 
-def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, untruncated_violin):
+
+def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, untruncated_violin, outfile):
     plt.figure(figsize=(10, 10))
     mean_supports = []
 
@@ -129,7 +137,7 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, unt
     plt.xlabel('Number of bailed-out nodes $k$')
     plt.ylabel('Gini Coefficient')
     # plt.ylim(0, 1)
-    plt.savefig('gini.png')
+    plt.savefig('gini_' + outfile)
 
     plt.figure(figsize=(15, 10))
     for i in range(zs.shape[-1]):
@@ -147,10 +155,7 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, unt
     plt.bar(np.arange(1, 1 + len(most_significant)), most_significant)
     plt.xlabel('Rank of node $r$')
     plt.ylabel('Mean probability of node')
-    plt.savefig('barplot.png')
-
-    eps = 10**np.log10(zs_mean[np.where(zs_mean > 0)].min())
-
+    plt.savefig('barplot_' + outfile)
 
 
 if __name__ == '__main__':
@@ -176,7 +181,6 @@ if __name__ == '__main__':
     elif args.dataset == 'random':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)
-
 
     beta = B / P_bar
 
@@ -233,7 +237,6 @@ if __name__ == '__main__':
     random_order = list(copy.deepcopy(V))
     random.shuffle(random_order)
 
-
     expected_objective_value_greedy = []
     expected_objective_value_centralities = []
     expected_objective_value_out_degrees = []
@@ -243,7 +246,6 @@ if __name__ == '__main__':
     expected_objective_value_random = []
 
     pbar = tqdm.tqdm(k_range)
-
 
     for k in k_range:
 
@@ -256,7 +258,8 @@ if __name__ == '__main__':
 
         if args.obj in ['SoP', 'SoT', 'FS', 'SoIP']:
 
-            S, best = eisenberg_noe_bailout_greedy(P_bar, A, C, L, V, S, v, num_iters=num_iters, workers=workers)
+            S, best = eisenberg_noe_bailout_greedy(
+                P_bar, A, C, L, V, S, v, num_iters=num_iters, workers=workers)
 
             expected_objective_value_greedy.append(best)
 
@@ -290,7 +293,8 @@ if __name__ == '__main__':
 
         elif args.obj == 'MD':
 
-            S, best = eisenberg_noe_bailout_greedy_min_default(P_bar, A, C, L, V, S, eps, num_iters=num_iters, workers=workers)
+            S, best = eisenberg_noe_bailout_greedy_min_default(
+                P_bar, A, C, L, V, S, eps, num_iters=num_iters, workers=workers)
 
             expected_objective_value_greedy.append(best)
 
@@ -322,19 +326,21 @@ if __name__ == '__main__':
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding_min_default(
                 P_bar, A, C, L, k, eps, tol=tol, num_iters=num_iters, workers=workers))
 
-
         pbar.update()
 
     pbar.close()
 
-    uncertainty_plot(k_range, [(expected_objective_value_greedy, 'Greedy'),
-                                (expected_objective_value_centralities, 'Top-k Centralities'),
-                                (expected_objective_value_out_degrees, 'Top-k Outdegrees'),
-                                (expected_objective_value_pageranks, 'Top-k Pagerank'),
-                                (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
-                                (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
-                                (expected_objective_value_random, 'Random Permutation')],
-                                'bailouts_{}_{}_{}.png'.format(args.obj, args.dataset, L), args.obj, L,
-                                num_std=args.num_std)
+    outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L)
 
-    stimuli_plot(k_range, expected_objective_value_randomized_rounding, args.obj, args.untruncated_violin)
+    uncertainty_plot(k_range, [(expected_objective_value_greedy, 'Greedy'),
+                               (expected_objective_value_centralities, 'Top-k Centralities'),
+                               (expected_objective_value_out_degrees, 'Top-k Outdegrees'),
+                               (expected_objective_value_pageranks, 'Top-k Pagerank'),
+                               (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
+                               (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
+                               (expected_objective_value_random, 'Random Permutation')],
+                     outfile_suffix, args.obj, L,
+                     num_std=args.num_std)
+
+    stimuli_plot(k_range, expected_objective_value_randomized_rounding,
+                 args.obj, args.untruncated_violin, outfile_suffix)
