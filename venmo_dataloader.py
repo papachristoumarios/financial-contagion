@@ -9,7 +9,7 @@ from generator import *
 
 sns.set_theme()
 
-def load_venmo_data_and_extract_components(export_wcc=True, min_size=100):
+def load_venmo_data_and_extract_components(export_wcc=True, min_size=50, densest=True):
     df = pd.read_csv('data/venmo.csv', low_memory=True)
 
     G = nx.from_pandas_edgelist(df, 'payment.actor.username', 'payment.target.user.username', create_using=nx.DiGraph)
@@ -19,11 +19,22 @@ def load_venmo_data_and_extract_components(export_wcc=True, min_size=100):
 
     if export_wcc:
         wccs_gen = nx.weakly_connected_components(G)
+        max_density, argmax, argmax_idx = 0, None, -1
 
         for i, wcc in enumerate(wccs_gen):
             if len(wcc) >= min_size:
-                pickle.dump(G.subgraph(wcc).copy(), open('data/venmo_wcc_{}.pickle'.format(i), 'wb'))
-                wccs.append(wcc)
+                H = G.subgraph(wcc).copy()
+                if not densest:
+                    pickle.dump(H, open('data/venmo_wcc_{}.pickle'.format(i), 'wb'))
+                    wccs.append(wcc)
+                else:
+                    if len(H.edges()) / len(H)**2 >= max_density:
+                        max_density = len(H.edges()) / len(H)**2
+                        argmax = H
+                        argmax_idx = i
+
+    if densest:
+        pickle.dump(argmax, open('data/venmo_wcc_{}_densest.pickle'.format(argmax_idx), 'wb'))
 
     return G, wccs
 
@@ -62,3 +73,6 @@ def load_venmo_dataset():
         wealth = external_assets + internal_assets - external_liabilities - internal_liabilities
 
         return A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, external_assets, external_liabilities, wealth, G
+
+if __name__ == '__main__':
+    load_venmo_data_and_extract_components()

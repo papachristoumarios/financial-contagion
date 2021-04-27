@@ -76,8 +76,8 @@ def create_multi_graph(patterns, expenditures):
         workers = json.loads(x['workers'])
         home_cbg = json.loads(x['visitor_home_cbgs'])
         for cbg, val in home_cbg.items():
-            cbg_workers = int(round(workers['workers'] * val))
-            cbg_non_workers = int(val - cbg_workers)
+            cbg_workers = int(np.ceil(workers['workers'] * val))
+            cbg_non_workers = int(np.ceil(val - cbg_workers))
 
             if not expenditures[expenditures['naics_code_prefix'] == naics_code_prefix].empty:
                 expenditures_freq[cbg][naics_code_prefix] += 1
@@ -98,8 +98,8 @@ def create_multi_graph(patterns, expenditures):
             naics_code_prefix = 0
 
         for cbg, val in home_cbg.items():
-            cbg_workers = int(round(workers['workers'] * val))
-            cbg_non_workers = int(val - cbg_workers)
+            cbg_workers = int(np.ceil(workers['workers'] * val))
+            cbg_non_workers = int(np.ceil(val - cbg_workers))
 
             weight = cbg_non_workers * expenditure_naics / expenditures_freq[cbg][naics_code_prefix]
             [G.add_edge(int(cbg), x['placekey'], weight=weight) for _ in range(cbg_non_workers)]
