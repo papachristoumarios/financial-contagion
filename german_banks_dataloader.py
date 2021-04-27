@@ -71,6 +71,29 @@ def plot_german_banks_dataset(data, A, P_bar, liabilities, adj, internal_assets,
     jointplot.fig.subplots_adjust(top=0.95)
     plt.savefig('german_banks_assets_liabilities_distribution.png')
 
+
+    plt.figure(figsize=(10, 10))
+    jointplot = sns.jointplot(external_liabilities.flatten(), internal_liabilities.flatten(), kind='reg')
+    pearson_corr = scipy.stats.pearsonr(external_liabilities.flatten(), internal_liabilities.flatten())[0]
+    coeffs = np.round(np.polyfit(external_liabilities.flatten(), internal_liabilities.flatten(), deg=1), 2)
+    jointplot.fig.suptitle('$R^2 = {}$, $a = {}$, $b = {}$'.format(round(pearson_corr, 3), round(coeffs[0], 2), round(coeffs[1], 2)), fontsize=12)
+    jointplot.fig.tight_layout()
+    jointplot.fig.subplots_adjust(top=0.95)
+    plt.xlabel('External Liabilities')
+    plt.ylabel('Internal Liabilities')
+    plt.savefig('german_banks_assets_extrernal_liabilities_internal_liabilities_reg.png')
+ 
+    plt.figure(figsize=(10, 10))
+    jointplot = sns.jointplot(external_assets.flatten(), internal_assets.flatten(), kind='reg')
+    pearson_corr = scipy.stats.pearsonr(external_assets.flatten(), internal_assets.flatten())[0]
+    coeffs = np.round(np.polyfit(external_assets.flatten(), internal_assets.flatten(), deg=1), 2)
+    jointplot.fig.suptitle('$R^2 = {}$, $a = {}$, $b = {}$'.format(round(pearson_corr, 3), round(coeffs[0], 2), round(coeffs[1], 2)), fontsize=12)
+    jointplot.fig.tight_layout()
+    jointplot.fig.subplots_adjust(top=0.95)
+    plt.xlabel('External Assets')
+    plt.ylabel('Internal Assets')
+    plt.savefig('german_banks_assets_extrernal_assets_internal_assets_reg.png')
+
     plt.figure(figsize=(10, 10))
     sns.distplot(data['Equity'], kde=False, fit=scipy.stats.pareto, label='Wealth {}'.format(pareto_fit_helper(data['Equity'])))
     plt.xlim(0, data['Equity'].max())

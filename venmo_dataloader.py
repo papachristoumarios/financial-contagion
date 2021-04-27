@@ -27,38 +27,38 @@ def load_venmo_data_and_extract_components(export_wcc=True, min_size=100):
 
     return G, wccs
 
-def load_venmo_dataset():
-    for filename in glob.glob('data/venmo_wcc_*'):
-        G = nx.nx.relabel.convert_node_labels_to_integers(nx.read_gpickle(filename))
-        n = len(G)
+def load_venmo_dataset(filename='data/venmo_wcc_4826.pickle'):
 
-        distribution = 'pareto'
-        alpha = 0.14
+    G = nx.nx.relabel.convert_node_labels_to_integers(nx.read_gpickle(filename))
+    n = len(G)
 
-        distributions = {
-            'exponential' : lambda size: np.random.exponential(1, size=size),
-            'pareto' : lambda size: np.random.pareto(2, size=size),
-            'lognormal' : lambda size: np.random.lognormal(0, 1, size=size)
-        }
+    distribution = 'pareto'
+    alpha = 0.14
 
-        adj = nx.to_numpy_array(G)
-        outdegree = adj.sum(0)
-        indegree = adj.sum(-1)
+    distributions = {
+        'exponential' : lambda size: np.random.exponential(1, size=size),
+        'pareto' : lambda size: np.random.pareto(2, size=size),
+        'lognormal' : lambda size: np.random.lognormal(0, 1, size=size)
+    }
 
-        liabilities = adj * distributions[distribution]((n, n))
+    adj = nx.to_numpy_array(G)
+    outdegree = adj.sum(0)
+    indegree = adj.sum(-1)
 
-        internal_assets = liabilities.sum(-1).reshape((n, 1))
-        internal_liabilities = liabilities.sum(0).reshape((n, 1))
+    liabilities = adj * distributions[distribution]((n, n))
 
-        external_assets = np.array([G.degree(u) for u in G]) * distributions[distribution]((n, 1))
-        external_liabilities = alpha * external_assets
+    internal_assets = liabilities.sum(-1).reshape((n, 1))
+    internal_liabilities = liabilities.sum(0).reshape((n, 1))
 
-        P_bar = internal_liabilities + external_liabilities
+    external_assets = np.array([G.degree(u) for u in G]) * distributions[distribution]((n, 1))
+    external_liabilities = alpha * external_assets
 
-        A = np.copy(liabilities)
-        for i in range(liabilities.shape[0]):
-            A[i] /= P_bar[i]
+    P_bar = internal_liabilities + external_liabilities
 
-        wealth = external_assets + internal_assets - external_liabilities - internal_liabilities
+    A = np.copy(liabilities)
+    for i in range(liabilities.shape[0]):
+        A[i] /= P_bar[i]
 
-        return A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, external_assets, external_liabilities, wealth, G
+    wealth = external_assets + internal_assets - external_liabilities - internal_liabilities
+
+    return A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, external_assets, external_liabilities, wealth, G

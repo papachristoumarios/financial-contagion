@@ -47,7 +47,18 @@ def preprocess_eba_data():
     external_assets.to_csv('data/glasserman_young_data_external_assets.csv')
 
     plt.figure(figsize=(12, 10))
-    pearson_corr = scipy.stats.pearsonr(external_assets, external_liabilities)[0]
+    pearson_corr = scipy.stats.pearsonr(internal_liabilities, external_liabilities)[0]
+    jointplot = sns.jointplot(internal_liabilities, external_liabilities, kind='reg')
+    coeffs = np.round(np.polyfit(internal_liabilities.to_numpy().flatten(), external_liabilities.to_numpy().flatten(), deg=1), 2)
+
+    jointplot.fig.suptitle('$R^2 = {}$, $a = {}$, $b = {}$'.format(
+        round(pearson_corr, 3), round(coeffs[0], 2), round(coeffs[1], 2)), fontsize=12)
+    plt.ylabel('Int. Liabilities')
+    plt.xlabel('Ext. Liabilities')
+    plt.savefig('glasserman_young_internal_liabilities_external_liabilities_reg.png')
+
+    plt.figure(figsize=(12, 10))
+    pearson_corr = scipy.stats.pearsonr(external_assets, internal_liabilities)[0]
     jointplot = sns.jointplot(external_assets, external_liabilities, kind='reg')
     coeffs = np.round(np.polyfit(external_assets.to_numpy().flatten(), external_liabilities.to_numpy().flatten(), deg=1), 2)
 
@@ -56,7 +67,7 @@ def preprocess_eba_data():
     plt.ylabel('Ext. Liabilities')
     plt.xlabel('Ext. Assets')
     plt.savefig('glasserman_young_external_assets_external_liabilities_reg.png')
-
+    
     plt.figure(figsize=(10, 10))
     sns.distplot(data['w_i'], kde=False, fit=scipy.stats.expon,
                  label='Wealth {}'.format(expon_fit_helper(data['w_i'])))
@@ -123,4 +134,4 @@ def load_eba_dataset():
 
 
 if __name__ == '__main__':
-    preprocess_glasserman_young_data()
+    preprocess_eba_data()
