@@ -38,7 +38,7 @@ def load_venmo_data_and_extract_components(export_wcc=True, min_size=50, densest
 
     return G, wccs
 
-def load_venmo_dataset(filename='data/venmo_wcc_4826.pickle'):
+def load_venmo_dataset(filename='data/venmo_wcc_54415_densest.pickle'):
 
     G = nx.nx.relabel.convert_node_labels_to_integers(nx.read_gpickle(filename))
     n = len(G)
@@ -69,6 +69,8 @@ def load_venmo_dataset(filename='data/venmo_wcc_4826.pickle'):
     A = np.copy(liabilities)
     for i in range(liabilities.shape[0]):
         A[i] /= P_bar[i]
+
+    wealth = internal_assets + external_assets - P_bar
 
     return A, P_bar, liabilities, adj, internal_assets, internal_liabilities, outdegree, indegree, external_assets, external_liabilities, wealth, G
 
