@@ -46,11 +46,15 @@ def get_argparser():
     return args
 
 
-def uncertainty_plot(k_range, results, outfile, obj, L, num_std=0.5, show=False):
+def uncertainty_plot(k_range, results, outfile, obj, L, b, num_std=0.5, show=False):
     plt.figure(figsize=(10, 10))
     colors = iter(cm.rainbow(np.linspace(0, 1, 2 * len(results))))
-    plt.title('{} objective for $L = {}$'.format(obj, L))
-    plt.xlabel('Number of bailed-out nodes $k$')
+    if isinstance(L, int):
+        plt.title('{} objective for $L = {}$'.format(obj, L))
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isinstance(L, np.ndarray):
+        plt.title('{} objective for custom bailouts with budget increase rate {}'.format(obj, b))
+        plt.xlabel('Multiples of budget increase $k$')
     plt.ylabel(obj)
 
     for result, label in results:
@@ -76,7 +80,7 @@ def uncertainty_plot(k_range, results, outfile, obj, L, num_std=0.5, show=False)
     if show:
         plt.show()
 
-def stimuli_plot(k_range, expected_objective_value_ginis, obj, outfile):
+def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, outfile):
     plt.figure(figsize=(10, 10))
 
     for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
@@ -86,14 +90,21 @@ def stimuli_plot(k_range, expected_objective_value_ginis, obj, outfile):
         ginis = np.zeros_like(k_range).astype(np.float64)
 
         for i in range(len(ginis)):
-            ginis[i] = utils.gini(zs[i, :])
+            if isinstance(L, int):
+                ginis[i] = utils.gini(zs[i, :])
+            elif isinstance(L, np.ndarray):
+                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten())    
 
         plt.plot(k_range, ginis, label='Target Gini = {}'.format(gini))
 
     plt.legend()
-    plt.title('Gini Coefficients for $L = {}$'.format(L))
-    plt.xlabel('Number of bailed-out nodes $k$')
+    if isinstance(L, int):
+        plt.title('Gini Coefficients for $L = {}$'.format(L))
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isinstance(L, np.ndarray):
+        plt.title('Gini Coefficients for custom bailouts with budget increase rate {}'.format(b))
     plt.ylabel('Gini Coefficient')
+
     plt.savefig('gini_target_gini' + outfile)
 
 
@@ -195,8 +206,8 @@ if __name__ == '__main__':
     outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L if isinstance(L, int) else 'custom')
 
     uncertainty_plot(k_range, [(val, 'Target Gini = {}'.format(key)) for key, val in expected_objective_value_randomized_ginis.items()],
-                     outfile_suffix, args.obj, L if isinstance(L, int) else 'custom',
+                     outfile_suffix, args.obj, L, b,
                      num_std=args.num_std)
 
-    stimuli_plot(k_range, expected_objective_value_randomized_ginis,
-                 args.obj, outfile_suffix)
+    ginis_plot(k_range, expected_objective_value_randomized_ginis,
+                 args.obj, L, b, outfile_suffix)

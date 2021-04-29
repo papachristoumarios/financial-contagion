@@ -44,11 +44,15 @@ def get_argparser():
     return parser
 
 
-def uncertainty_plot(k_range, results, outfile, obj, L, num_std=0.5, show=False):
+def uncertainty_plot(k_range, results, outfile, obj, L, b, num_std=0.5, show=False):
     plt.figure(figsize=(10, 10))
     colors = iter(cm.rainbow(np.linspace(0, 1, 1 + len(results))))
-    plt.title('{} objective for $L = {}$'.format(obj, L))
-    plt.xlabel('Number of bailed-out nodes $k$')
+    if isinstance(L, int):
+        plt.title('{} objective for $L = {}$'.format(obj, L))
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isinstance(L, np.ndarray):
+        plt.title('{} objective for custom bailouts with budget increase rate {}'.format(obj, b))
+        plt.xlabel('Multiples of budget increase $k$')
     plt.ylabel(obj)
 
     for result, label in results:
@@ -101,7 +105,7 @@ def truncated_violinplot(data):
     sns.categorical._ViolinPlotter.fit_kde = fit_kde_func
 
 
-def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, untruncated_violin, outfile):
+def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, untruncated_violin, L, b, outfile):
     plt.figure(figsize=(10, 10))
     mean_supports = []
 
@@ -115,7 +119,11 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, unt
         sns.violinplot(data=mean_supports, palette='husl')
     else:
         truncated_violinplot(mean_supports)
-    plt.xlabel('Number of bailed-out nodes $k$')
+    if isinstance(L, int):
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isinstance(L, int):
+        plt.xlabel('Multiples of budget increase $k$')
+
     plt.ylabel('Significance distributions (support of LP relaxation variables)')
     plt.xticks(k_range - 1, k_range)
     plt.savefig('stimuli.png')
@@ -130,8 +138,11 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, unt
     plt.figure(figsize=(10, 10))
     plt.plot(k_range, ginis)
     plt.legend()
-    plt.title('Gini Coefficients for $L = {}$'.format(L))
-    plt.xlabel('Number of bailed-out nodes $k$')
+    if isinstance(L, int):
+        plt.title('Gini Coefficients for $L = {}$'.format(L))
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isinstance(L, np.ndarray):
+        plt.title('Gini Coefficients for custom bailouts with budget increase rate {}'.format(b))
     plt.ylabel('Gini Coefficient')
     # plt.ylim(0, 1)
     plt.savefig('gini_' + outfile)
@@ -140,8 +151,12 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, unt
     for i in range(zs.shape[-1]):
         plt.plot(np.gradient(zs[:, i]), label='Node {}'.format(i))
     plt.legend()
-    plt.xlabel('Number of bailed-out nodes $k$')
-    plt.ylabel('$\Delta z_i^*(k)$')
+    if isinstance(L, int):
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isintsnce(L, np.ndarray):
+        plt.xlabel('Multiples of budget increase $k$')
+
+    plt.ylabel('$\Delta z_i^*$')
     plt.savefig('fractional_stimuli.png')
 
     zs_mean = np.mean(zs, axis=0)
@@ -338,8 +353,8 @@ if __name__ == '__main__':
                                (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
                                (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
                                (expected_objective_value_random, 'Random Permutation')],
-                     outfile_suffix, args.obj, L if isinstance(L, int) else 'custom',
+                     outfile_suffix, args.obj, L, b,
                      num_std=args.num_std)
 
     stimuli_plot(k_range, expected_objective_value_randomized_rounding,
-                 args.obj, args.untruncated_violin, outfile_suffix)
+                 args.obj, args.untruncated_violin, L, b, outfile_suffix)
