@@ -39,10 +39,7 @@ def get_argparser():
                         help='Untruncated violin plots')
     parser.add_argument('--eps', type=float, default=1e-4,
                         help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
-    parser.add_argument('--beta', type=float, default=0,
-                        help='Fairness constraint (number of nodes to be bailed out increasing by order of wealth)')
-    parser.add_argument('--delta', type=float, default=0,
-                        help='Fairness constraint (percentage of bailouts to be given out of the k bailouts)')
+    parser.add_argument('-b', type=int, default=10000, help='Rate of increase of availbale budget (if different bailouts are selected)')
 
     return parser
 
@@ -177,7 +174,7 @@ if __name__ == '__main__':
     elif args.dataset == 'venmo':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = load_venmo_dataset()
     elif args.dataset == 'safegraph':
-        A, P_bar, P, C, B, _, w, G = load_safegraph_dataset()
+        A, P_bar, P, C, B, L, w, G = load_safegraph_dataset()
     elif args.dataset == 'random':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)
@@ -201,25 +198,25 @@ if __name__ == '__main__':
     else:
         num_iters = args.num_iters
 
-    if args.L <= 0:
-        raise Exception('Please use a positive amount for L')
-    else:
-        L = min(args.L, C.max())
+    if args.dataset != 'safegraph':
+        try:
+            L = float(args.L)
+            if L <= 0:
+                raise Exception('Please use a positive amount for L')
+            else:
+                L = min(args.L, C.max())
+        except ValueError:
+            L = np.genfromtxt(args.L, delimiter=',', dtype=np.float64)
+
+    b = args.b
 
     if args.max_k <= 0:
         k_range = np.arange(1, 1 + len(G))
     else:
         k_range = np.arange(1, 1 + args.max_k)
 
-    if (not 0 <= args.beta <= 1) or (not 0 <= args.delta <= 1):
-        raise Exception('Wrong values given for beta or delta. Please enter values in [0, 1]')
-    else:
-        beta = args.beta
-        delta = args.delta
-        n_poorest = int(args.beta * n)
-
     V = set(list(G.nodes()))
-    S = set()
+    S_greedy = set()
     eps = args.eps
 
     pageranks = nx.algorithms.pagerank(G)
@@ -234,7 +231,7 @@ if __name__ == '__main__':
 
     wealths = list(sorted([(v, w[v, 0]) for v in G], key=lambda x: x[-1]))
 
-    random_order = list(copy.deepcopy(V))
+    random_order = [(v, 0) for v in G]
     random.shuffle(random_order)
 
     expected_objective_value_greedy = []
@@ -249,88 +246,90 @@ if __name__ == '__main__':
 
     for k in k_range:
 
-        k_poorest = int(args.delta * k)
-
         if args.resource_augmentation:
-            tol = k / 10
+            if isinstance(L, int):
+                tol = k / 10
+            elif isinstance(L, np.ndarray):
+                tol = k * b / 10
         else:
             tol = 1e-9
 
         if args.obj in ['SoP', 'SoT', 'FS', 'SoIP']:
 
-            S, best = eisenberg_noe_bailout_greedy(
-                P_bar, A, C, L, V, S, v, num_iters=num_iters, workers=workers)
+            S_greedy, best = eisenberg_noe_bailout_greedy(
+                P_bar, A, C, L, b, k, V, S_greedy, v, num_iters=num_iters, workers=workers)
 
             expected_objective_value_greedy.append(best)
 
-            S_centralities = set([x[0] for x in centralities[:k]])
+            S_centralities = create_set_helper(centralities, k, b, L)
 
             expected_objective_value_centralities.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_centralities, None, v, num_iters=num_iters, workers=workers))
 
-            S_out_degrees = set([x[0] for x in out_degrees[:k]])
+            S_out_degrees = create_set_helper(out_degrees, k, b, L)
 
             expected_objective_value_out_degrees.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_out_degrees, None, v, num_iters=num_iters, workers=workers))
 
-            S_pageranks = set([x[0] for x in pageranks[:k]])
+            S_pageranks = create_set_helper(pageranks, k, b, L)
 
             expected_objective_value_pageranks.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_pageranks, None, v, num_iters=num_iters, workers=workers))
 
-            S_wealths = set([x[0] for x in wealths[:k]])
+            S_wealths = create_set_helper(wealths, k, b, L)
 
             expected_objective_value_wealths.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_wealths, None, v, num_iters=num_iters, workers=workers))
 
-            S_random = set(random_order[:k])
+            S_random = create_set_helper(random_order, k, b, L)
 
             expected_objective_value_random.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_random, None, v, num_iters=num_iters, workers=workers))
 
+
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding(
-                P_bar, A, C, L, k, v, tol=tol, num_iters=num_iters, workers=workers))
+                P_bar, A, C, L, b, k, None, v, tol=tol, num_iters=num_iters, workers=workers))
 
         elif args.obj == 'MD':
 
-            S, best = eisenberg_noe_bailout_greedy_min_default(
-                P_bar, A, C, L, V, S, eps, num_iters=num_iters, workers=workers)
+            S_greedy, best = eisenberg_noe_bailout_greedy_min_default(
+                P_bar, A, C, L, b, k, V, S_greedy, eps, num_iters=num_iters, workers=workers)
 
             expected_objective_value_greedy.append(best)
 
-            S_centralities = set([x[0] for x in centralities[:k]])
+            S_centralities = create_set_helper(centralities, k, b, L)
 
             expected_objective_value_centralities.append(eisenberg_noe_bailout_min_default(
                 P_bar, A, C, L, S_centralities, None, eps, num_iters=num_iters, workers=workers))
 
-            S_out_degrees = set([x[0] for x in out_degrees[:k]])
+            S_out_degrees = create_set_helper(out_degrees, k, b, L)
 
             expected_objective_value_out_degrees.append(eisenberg_noe_bailout_min_default(
                 P_bar, A, C, L, S_out_degrees, None, eps, num_iters=num_iters, workers=workers))
 
-            S_pageranks = set([x[0] for x in pageranks[:k]])
+            S_pageranks = create_set_helper(pageranks, k, b, L)
 
             expected_objective_value_pageranks.append(eisenberg_noe_bailout_min_default(
                 P_bar, A, C, L, S_pageranks, None, eps, num_iters=num_iters, workers=workers))
 
-            S_wealths = set([x[0] for x in wealths[:k]])
+            S_wealths = create_set_helper(wealths, k, b, L)
 
             expected_objective_value_wealths.append(eisenberg_noe_bailout_min_default(
                 P_bar, A, C, L, S_wealths, None, eps, num_iters=num_iters, workers=workers))
 
-            S_random = set(random_order[:k])
+            S_random = create_set_helper(random_order, k, b, L)
 
             expected_objective_value_random.append(eisenberg_noe_bailout(
                 P_bar, A, C, L, S_random, None, eps, num_iters=num_iters, workers=workers))
 
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding_min_default(
-                P_bar, A, C, L, k, eps, tol=tol, num_iters=num_iters, workers=workers))
+                P_bar, A, C, L, b, k, None, eps, tol=tol, num_iters=num_iters, workers=workers))
 
         pbar.update()
 
     pbar.close()
 
-    outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L)
+    outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L if isinstance(L, int) else 'custom')
 
     uncertainty_plot(k_range, [(expected_objective_value_greedy, 'Greedy'),
                                (expected_objective_value_centralities, 'Top-k Centralities'),
@@ -339,7 +338,7 @@ if __name__ == '__main__':
                                (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
                                (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
                                (expected_objective_value_random, 'Random Permutation')],
-                     outfile_suffix, args.obj, L,
+                     outfile_suffix, args.obj, L if isinstance(L, int) else 'custom',
                      num_std=args.num_std)
 
     stimuli_plot(k_range, expected_objective_value_randomized_rounding,

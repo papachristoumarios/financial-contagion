@@ -36,3 +36,16 @@ def gini(x):
             d[i, j] = np.abs(x[i] - x[j])
 
     return d.sum() / (2 * n**2 * x_bar)
+
+def create_set_helper(arr, k, b, L):
+    if isinstance(L, np.ndarray):
+        total = 0
+        result = []
+        for v, _ in arr:
+            if total + L[v, 0] > k * b:
+                return set(result)
+            else:
+                total += L[v, 0]
+                result.append(v)
+    else:
+        return set([x[0] for x in arr[:k]])
