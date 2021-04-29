@@ -153,7 +153,7 @@ def stimuli_plot(k_range, expected_objective_value_randomized_rounding, obj, unt
     plt.legend()
     if isinstance(L, int):
         plt.xlabel('Number of bailed-out nodes $k$')
-    elif isintsnce(L, np.ndarray):
+    elif isinstance(L, np.ndarray):
         plt.xlabel('Multiples of budget increase $k$')
 
     plt.ylabel('$\Delta z_i^*$')
