@@ -118,6 +118,7 @@ def create_eisenberg_noe_data(G):
     C = np.zeros(shape=(n, 1))
     B = np.zeros(shape=(n, 1))
     A = np.zeros(shape=(n, n))
+    p_minority = np.zeros(shape=(n, 1))
 
     G = nx.relabel.convert_node_labels_to_integers(G)
 
@@ -128,6 +129,7 @@ def create_eisenberg_noe_data(G):
         L[u] += data.get('L', 0)
         C[u] += data.get('assets', 0)
         B[u] += data.get('liabilities', 0)
+        p_minority[u] += data.get('p_minority', 0)
 
     P_bar = B + P.sum(-1).reshape(n, 1)
 
@@ -140,6 +142,7 @@ def create_eisenberg_noe_data(G):
     np.savetxt('data/safegraph/safegraph_external_assets.csv', C, delimiter=',')
     np.savetxt('data/safegraph/safegraph_proportional_liability_matrix.csv', A, delimiter=',')
     np.savetxt('data/safegraph/safegraph_bailouts.csv', L, delimiter=',')
+    np.savetxt('data/safegraph/safegraph_minority.csv', p_minority, delimiter=',')
     nx.write_gpickle(G, "data/safegraph/graph.gpickle")
 
 def load_safegraph_dataset():
@@ -155,6 +158,14 @@ def load_safegraph_dataset():
     w = C + P.sum(0).reshape(n, 1) - P_bar
 
     return A, P_bar, P, C, B, L, w, G
+
+def minority_helper(x, p_minority):
+    if x['race'] == 'White':
+        return 0
+    elif x['race'] != 'White' and x['race'] != 'Unanswered':
+        return 1
+    else:
+        return p_minority
 
 if __name__ == '__main__':
     args = get_argparser()
@@ -204,6 +215,7 @@ if __name__ == '__main__':
     # Get the categories of POIs through the brands dataframe
     patterns = patterns.join(brands, on='safegraph_brand_ids')
 
+    
     # Drop unneeded columns
     patterns = patterns[['placekey', 'naics_code', 'payroll', 'poi_cbg', 'visitor_home_cbgs', 'bucketed_dwell_times']]
 
@@ -237,7 +249,12 @@ if __name__ == '__main__':
     loans = pd.read_csv(os.path.join(args.loans_data, 'loans.csv'))
     loans.rename(inplace=True, columns={'placekey_poi_match' : 'placekey'})
     loans.set_index('placekey', inplace=True)
+    n_white = len(loans.query("race == 'White'"))
+    n_minority = len(loans.query("race != 'White' and race != 'Unanswered'"))
+    p_minority = n_minority / (n_white + n_minority)
     loans = loans[loans.index.isin(patterns['placekey'])]
+    loans['p_minority'] = loans.apply(lambda x: minority_helper(x, p_minority), axis=1)
+    
 
     # Consumer Expenditures
     expenditures = pd.read_csv(os.path.join(args.expenditures_data, 'expenditures.csv'))
@@ -304,6 +321,7 @@ if __name__ == '__main__':
     nx.set_node_attributes(G, households_dependents_avg, 'avg_dependents')
     nx.set_node_attributes(G, num_households, 'num_people')
     nx.set_node_attributes(G, households_race['p_minority'].to_dict(), 'p_minority')
+    nx.set_node_attributes(G, loans['p_minority'].to_dict(), 'p_minority')
     nx.set_node_attributes(G, households_bailouts, 'L')
     nx.set_node_attributes(G, households_external_assets, 'assets')
 
