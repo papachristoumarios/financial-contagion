@@ -225,37 +225,37 @@ if __name__ == '__main__':
 
         for i in range(k):
             S_greedy, best = eisenberg_noe_bailout_greedy(
-                P_bar, A, C, L, b, V, S_greedy, v, num_iters=num_iters, workers=workers)
+                P_bar, A, C, L, b, k, V, S_greedy, v, num_iters=num_iters, workers=workers)
 
         expected_objective_value_greedy = best
 
-        S_centralities = set([x[0] for x in centralities[:k]])
+        S_centralities = create_set_helper(centralities, k, b, L)
 
         expected_objective_value_centralities = eisenberg_noe_bailout(
             P_bar, A, C, L, S_centralities, None, v, num_iters=num_iters, workers=workers)
 
-        S_out_degrees = set([x[0] for x in out_degrees[:k]])
+        S_out_degrees = create_set_helper(out_degrees, k, b, L)
 
         expected_objective_value_out_degrees = eisenberg_noe_bailout(
             P_bar, A, C, L, S_out_degrees, None, v, num_iters=num_iters, workers=workers)
 
-        S_pageranks = set([x[0] for x in pageranks[:k]])
+        S_pageranks = create_set_helper(pageranks, k, b, L)
 
         expected_objective_value_pageranks = eisenberg_noe_bailout(
             P_bar, A, C, L, S_pageranks, None, v, num_iters=num_iters, workers=workers)
 
-        S_wealths = set([x[0] for x in wealths[:k]])
+        S_wealths = create_set_helper(wealths, k, b, L)
 
         expected_objective_value_wealths = eisenberg_noe_bailout(
             P_bar, A, C, L, S_wealths, None, v, num_iters=num_iters, workers=workers)
 
-        S_random = set(random_order[:k])
+        S_random = create_set_helper(random_order, k, b, L)
 
         expected_objective_value_random = eisenberg_noe_bailout(
-            P_bar, A, C, L S_random, None, v, num_iters=num_iters, workers=workers)
+            P_bar, A, C, L, S_random, None, v, num_iters=num_iters, workers=workers)
 
         expected_objective_value_randomized_rounding = eisenberg_noe_bailout_randomized_rounding(
-            P_bar, A, C, L, b, k v, tol=tol, num_iters=num_iters, workers=workers)
+            P_bar, A, C, L, b, k, None, v, tol=tol, num_iters=num_iters, workers=workers)
 
     elif args.obj == 'MD':
 
@@ -265,36 +265,37 @@ if __name__ == '__main__':
 
         expected_objective_value_greedy = best
 
-        S_centralities = set([x[0] for x in centralities[:k]])
+        S_centralities = create_set_helper(centralities, k, b, L)
+
 
         expected_objective_value_centralities = eisenberg_noe_bailout_min_default(
             P_bar, A, C, L, S_centralities, None, eps, num_iters=num_iters, workers=workers)
 
-        S_out_degrees = set([x[0] for x in out_degrees[:k]])
+        S_out_degrees = create_set_helper(out_degrees, k, b, L)
 
         expected_objective_value_out_degrees = eisenberg_noe_bailout_min_default(
             P_bar, A, C, L, S_out_degrees, None, eps, num_iters=num_iters, workers=workers)
 
-        S_pageranks = set([x[0] for x in pageranks[:k]])
+        S_pageranks = create_set_helper(pageranks, k, b, L)
 
         expected_objective_value_pageranks = eisenberg_noe_bailout_min_default(
             P_bar, A, C, L, S_pageranks, None, eps, num_iters=num_iters, workers=workers)
 
-        S_wealths = set([x[0] for x in wealths[:k]])
+        S_wealths = create_set_helper(wealths, k, b, L)
 
         expected_objective_value_wealths = eisenberg_noe_bailout_min_default(
             P_bar, A, C, L, S_wealths, None, eps, num_iters=num_iters, workers=workers)
 
-        S_random = set(random_order[:k])
+        S_random = create_set_helper(random_order, k, b, L)
 
         expected_objective_value_random = eisenberg_noe_bailout(
             P_bar, A, C, L, S_random, None, eps, num_iters=num_iters, workers=workers)
 
         expected_objective_value_randomized_rounding = eisenberg_noe_bailout_randomized_rounding_min_default(
-            P_bar, A, C, L, k, eps, tol=tol, num_iters=num_iters, workers=workers)
+            P_bar, A, C, L, b, k, None, eps, tol=tol, num_iters=num_iters, workers=workers)
 
 
-    outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L)
+    outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L if isinstance(L, int) else 'custom')
 
 
 
