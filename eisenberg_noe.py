@@ -93,13 +93,13 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
             if p_minority is None:
                 solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k)
             else:
-                solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * gini * sum([p_minority[i, 0] * stimuli_variables[i] for i in range(n)]))
+                solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * np.sum(1 - p_minority) * gini * sum([p_minority[i, 0] * stimuli_variables[i] for i in range(n)]))
 
         elif isinstance(L, np.ndarray):
             if p_minority is None:
                 solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k * b)
             else:
-                solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * gini * sum([p_minority[i, 0] * L[i, 0] * stimuli_variables[i] for i in range(n)]))
+                solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * np.sum(1- p_minority) * gini * sum([p_minority[i, 0] * L[i, 0] * stimuli_variables[i] for i in range(n)]))
 
     # Objective
     solver.Maximize(sum([v[i, 0] * payment_variables[i] for i in range(n)]))
