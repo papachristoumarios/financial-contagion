@@ -154,10 +154,11 @@ def load_safegraph_dataset():
     C = np.genfromtxt('data/safegraph/safegraph_external_assets.csv', delimiter=',', dtype=np.float64).reshape(n, 1)
     A = np.genfromtxt('data/safegraph/safegraph_proportional_liability_matrix.csv', delimiter=',', dtype=np.float64)
     L = np.genfromtxt('data/safegraph/safegraph_bailouts.csv', delimiter=',', dtype=np.float64).reshape(n, 1)
+    p_minority = np.genfromtxt('data/safegraph/safegraph_minority.csv', delimiter=',', dtype=np.float64).reshape(n, 1)
     P_bar = B + P.sum(-1).reshape(n, 1)
     w = C + P.sum(0).reshape(n, 1) - P_bar
 
-    return A, P_bar, P, C, B, L, w, G
+    return A, P_bar, P, C, B, L, p_minority, w, G
 
 def minority_helper(x, p_minority):
     if x['race'] == 'White':
@@ -215,7 +216,7 @@ if __name__ == '__main__':
     # Get the categories of POIs through the brands dataframe
     patterns = patterns.join(brands, on='safegraph_brand_ids')
 
-    
+
     # Drop unneeded columns
     patterns = patterns[['placekey', 'naics_code', 'payroll', 'poi_cbg', 'visitor_home_cbgs', 'bucketed_dwell_times']]
 
@@ -254,7 +255,7 @@ if __name__ == '__main__':
     p_minority = n_minority / (n_white + n_minority)
     loans = loans[loans.index.isin(patterns['placekey'])]
     loans['p_minority'] = loans.apply(lambda x: minority_helper(x, p_minority), axis=1)
-    
+
 
     # Consumer Expenditures
     expenditures = pd.read_csv(os.path.join(args.expenditures_data, 'expenditures.csv'))

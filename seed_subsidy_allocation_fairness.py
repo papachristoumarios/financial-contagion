@@ -41,6 +41,7 @@ def get_argparser():
                         help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
     parser.add_argument('-b', type=int, default=10000, help='Rate of increase of availbale budget (if different bailouts are selected)')
     parser.add_argument('--ginis', type=str, default='', help='Delimited list of gini indices')
+    parser.add_argument('--enable_minorities', action='store_true', help='Optimize gini subject to minority properties')
     args = parser.parse_args()
     args.ginis = [float(x) for x in args.ginis.split(',')]
     return args
@@ -93,7 +94,7 @@ def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, outfile):
             if isinstance(L, int):
                 ginis[i] = utils.gini(zs[i, :])
             elif isinstance(L, np.ndarray):
-                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten())    
+                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten())
 
         plt.plot(k_range, ginis, label='Target Gini = {}'.format(gini))
 
@@ -120,6 +121,8 @@ if __name__ == '__main__':
     np.random.seed(seed)
     random.seed(seed)
 
+    p_minority = None
+
     if args.dataset == 'german_banks':
         data, A, P_bar, P, adj, _, _, _, _, _, C, B, w, G = load_german_banks_dataset()
     elif args.dataset == 'eba':
@@ -127,7 +130,9 @@ if __name__ == '__main__':
     elif args.dataset == 'venmo':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = load_venmo_dataset()
     elif args.dataset == 'safegraph':
-        A, P_bar, P, C, B, L, w, G = load_safegraph_dataset()
+        A, P_bar, P, C, B, L, p_minority, w, G = load_safegraph_dataset()
+        if not args.enable_minorities:
+            p_minority = None
     elif args.dataset == 'random':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)
@@ -190,14 +195,14 @@ if __name__ == '__main__':
 
             for gini in ginis:
                 expected_objective_value_randomized_ginis[gini].append(eisenberg_noe_bailout_randomized_rounding(
-                    P_bar, A, C, L, b, k, gini, v, tol=tol, num_iters=num_iters, workers=workers))
+                    P_bar, A, C, L, b, k, gini, p_minority, v, tol=tol, num_iters=num_iters, workers=workers))
 
         elif args.obj == 'MD':
 
             for gini in ginis:
 
                 expected_objective_value_randomized_ginis[gini].append(eisenberg_noe_bailout_randomized_rounding_min_default(
-                    P_bar, A, C, L, b, k, gini, eps, tol=tol, num_iters=num_iters, workers=workers))
+                    P_bar, A, C, L, b, k, gini, p_minority, eps, tol=tol, num_iters=num_iters, workers=workers))
 
         pbar.update()
 

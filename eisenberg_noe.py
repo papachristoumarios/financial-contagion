@@ -50,7 +50,7 @@ def process_financial_network(G):
 
 def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
 
-    P_bar, A, C, X, L, b, k, gini, v, tol = args
+    P_bar, A, C, X, L, b, k, gini, p_minority, v, tol = args
 
     n = A.shape[0]
 
@@ -90,9 +90,16 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
                     solver.Add(stimuli_variables[i] - stimuli_variables[j] <= gini_helper_variables[i, j])
 
         if isinstance(L, int):
-            solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k)
+            if p_minority is None:
+                solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k)
+            else:
+                solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * gini * sum([p_minority[i, 0] * stimuli_variables[i] for i in range(n)]))
+
         elif isinstance(L, np.ndarray):
-            solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k * b)
+            if p_minority is None:
+                solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k * b)
+            else:
+                solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * gini * sum([p_minority[i, 0] * L[i, 0] * stimuli_variables[i] for i in range(n)]))
 
     # Objective
     solver.Maximize(sum([v[i, 0] * payment_variables[i] for i in range(n)]))
@@ -121,7 +128,7 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
 
 def eisenberg_noe_bailout_randomized_rounding_min_default_given_shock(args):
 
-    P_bar, A, C, X, L, b, k, eps, tol = args
+    P_bar, A, C, X, L, b, k, gini, p_minority, eps, tol = args
 
     n = A.shape[0]
 
@@ -295,7 +302,7 @@ def eisenberg_noe_bailout_min_default(P_bar, A, C, L, S, u, eps, num_iters, work
 
     return marginal_gains_objective_mean, marginal_gains_objective_stdev
 
-def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, b, k, gini, v, tol, num_iters, workers):
+def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, b, k, gini, p_minority, v, tol, num_iters, workers):
     shocks = []
 
     for i in range(num_iters):
@@ -303,7 +310,7 @@ def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, b, k, gini, v, tol
         X = generate_beta_iid_shocks(C)
         shocks.append(X)
 
-    args = [(P_bar, A, C, X, L, b, k, gini, v, tol) for X in shocks]
+    args = [(P_bar, A, C, X, L, b, k, gini, p_minority, v, tol) for X in shocks]
 
     with multiprocessing.pool.ThreadPool(workers) as pool:
         marginal_gains = pool.map(
@@ -326,7 +333,7 @@ def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, b, k, gini, v, tol
 
     return marginal_gains_sol_mean, marginal_gains_sol_stdev, marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
 
-def eisenberg_noe_bailout_randomized_rounding_min_default(P_bar, A, C, L, b, k, gini, eps, tol, num_iters, workers):
+def eisenberg_noe_bailout_randomized_rounding_min_default(P_bar, A, C, L, b, k, gini, p_minority, eps, tol, num_iters, workers):
     shocks = []
 
     for i in range(num_iters):
@@ -334,7 +341,7 @@ def eisenberg_noe_bailout_randomized_rounding_min_default(P_bar, A, C, L, b, k, 
         X = generate_beta_iid_shocks(C)
         shocks.append(X)
 
-    args = [(P_bar, A, C, X, L, b, k, gini, eps, tol) for X in shocks]
+    args = [(P_bar, A, C, X, L, b, k, gini, p_minority, eps, tol) for X in shocks]
 
     with multiprocessing.pool.ThreadPool(workers) as pool:
         marginal_gains = pool.map(
