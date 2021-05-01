@@ -47,5 +47,6 @@ def create_set_helper(arr, k, b, L):
             else:
                 total += L[v, 0]
                 result.append(v)
+        return set(result)
     else:
         return set([x[0] for x in arr[:k]])

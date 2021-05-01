@@ -43,8 +43,8 @@ def load_venmo_dataset(filename='data/venmo_wcc_54415_densest.pickle'):
     G = nx.nx.relabel.convert_node_labels_to_integers(nx.read_gpickle(filename))
     n = len(G)
 
-    distribution = 'pareto'
-    alpha = 0.14
+    distribution = 'exponential'
+    alpha = 0.9
 
     distributions = {
         'exponential' : lambda size: np.random.exponential(1, size=size),
