@@ -10,6 +10,7 @@ def generate_uniform_iid_shocks(C):
 def generate_beta_iid_shocks(C):
     X = np.zeros_like(C)
     for i in range(len(X)):
+        # X[i] = C[i] * np.random.beta(a=1/2, b=1/2)
         X[i] = C[i] * np.random.beta(a=1, b=1)
 
     return X
