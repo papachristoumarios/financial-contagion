@@ -81,7 +81,7 @@ def uncertainty_plot(k_range, results, outfile, obj, L, b, num_std=0.5, show=Fal
     if show:
         plt.show()
 
-def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, outfile):
+def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, outfile):
     plt.figure(figsize=(10, 10))
 
     for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
@@ -92,9 +92,9 @@ def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, outfile):
 
         for i in range(len(ginis)):
             if isinstance(L, int):
-                ginis[i] = utils.gini(zs[i, :])
+                ginis[i] = utils.gini(zs[i, :], p_minority)
             elif isinstance(L, np.ndarray):
-                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten())
+                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten(), p_minority)
 
         plt.plot(k_range, ginis, label='Target Gini = {}'.format(gini))
 
@@ -107,6 +107,33 @@ def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, outfile):
     plt.ylabel('Gini Coefficient')
 
     plt.savefig('gini_target_gini' + outfile)
+
+def allocation_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, outfile):
+    plt.figure(figsize=(10, 10))
+
+    for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
+
+        zs = np.vstack([result[-2] for result in expected_objective_value_randomized_rounding])
+
+        allocation_minority = np.zeros_like(k_range).astype(np.float64)
+
+        for i in range(len(ginis)):
+            if isinstance(L, int):
+                allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L.flatten()).sum()
+            elif isinstance(L, np.ndarray):
+                allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L).sum()
+
+        plt.plot(k_range, allocation_minority, label='Target Gini = {}'.format(gini))
+
+    plt.legend()
+    if isinstance(L, int):
+        plt.title('Minority Stimulus Allocation for $L = {}$'.format(L))
+        plt.xlabel('Number of bailed-out nodes $k$')
+    elif isinstance(L, np.ndarray):
+        plt.title('Gini Coefficients for custom bailouts with budget increase rate {}'.format(b))
+    plt.ylabel('Total Allocation')
+
+    plt.savefig('minority_allocation_target_gini' + outfile)
 
 
 if __name__ == '__main__':
@@ -215,4 +242,7 @@ if __name__ == '__main__':
                      num_std=args.num_std)
 
     ginis_plot(k_range, expected_objective_value_randomized_ginis,
-                 args.obj, L, b, outfile_suffix)
+                 args.obj, L, b, p_minority, outfile_suffix)
+
+    allocation_plot(k_range, expected_objective_value_randomized_ginis,
+                 args.obj, L, b, p_minority, outfile_suffix)

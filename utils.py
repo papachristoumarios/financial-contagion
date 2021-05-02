@@ -27,15 +27,20 @@ def degree_plot(G, name='indegree', degree_fcn=lambda G, u: G.in_degree(u)):
 
     plt.savefig(name + '.png')
 
-def gini(x):
+def gini(x, p_minority=None):
     n = len(x)
     x_bar = x.mean()
     d = np.zeros(shape=(n, n))
     for i in range(n):
         for j in range(n):
-            d[i, j] = np.abs(x[i] - x[j])
-
-    return d.sum() / (2 * n**2 * x_bar)
+            if p_minority is None:
+                d[i, j] = np.abs(x[i] - x[j])
+            else:
+                d[i, j] = p_minority[i, 0] * (1 - p_minority[j, 0]) * np.abs(x[i] - x[j])
+    if p_minority is None:
+        return d.sum() / (2 * n**2 * x_bar)
+    else:
+        return (d.sum()) / (2 * np.dot(p_minority.flatten(), x.flatten()) * np.sum(1 - p_minority))
 
 def create_set_helper(arr, k, b, L):
     if isinstance(L, np.ndarray):
