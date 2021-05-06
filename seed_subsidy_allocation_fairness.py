@@ -42,6 +42,7 @@ def get_argparser():
     parser.add_argument('-b', type=int, default=10000, help='Rate of increase of availbale budget (if different bailouts are selected)')
     parser.add_argument('--ginis', type=str, default='', help='Delimited list of gini indices')
     parser.add_argument('--enable_minorities', action='store_true', help='Optimize gini subject to minority properties')
+    parser.add_argument('--enable_network', action='store_true', help='Optimize gini subject to network constraints')
     args = parser.parse_args()
     args.ginis = [float(x) for x in args.ginis.split(',')]
     return args
@@ -81,7 +82,7 @@ def uncertainty_plot(k_range, results, outfile, obj, L, b, num_std=0.5, show=Fal
     if show:
         plt.show()
 
-def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, outfile):
+def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, A, outfile):
     plt.figure(figsize=(10, 10))
 
     for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
@@ -92,9 +93,9 @@ def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, o
 
         for i in range(len(ginis)):
             if isinstance(L, int):
-                ginis[i] = utils.gini(zs[i, :], p_minority)
+                ginis[i] = utils.gini(zs[i, :], p_minority, A)
             elif isinstance(L, np.ndarray):
-                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten(), p_minority)
+                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten(), p_minority, A)
 
         plt.plot(k_range, ginis, label='Target Gini = {}'.format(gini))
 
@@ -119,7 +120,7 @@ def allocation_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minori
 
         for i in range(len(ginis)):
             if isinstance(L, int):
-                allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L.flatten()).sum()
+                allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L).sum()
             elif isinstance(L, np.ndarray):
                 allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L).sum()
 
@@ -150,6 +151,9 @@ if __name__ == '__main__':
 
     p_minority = None
 
+    if not (args.enable_minorities ^ args.enable_network):
+        raise Exception('Only one of the arguments can be used')
+
     if args.dataset == 'german_banks':
         data, A, P_bar, P, adj, _, _, _, _, _, C, B, w, G = load_german_banks_dataset()
     elif args.dataset == 'eba':
@@ -164,7 +168,7 @@ if __name__ == '__main__':
         A, P_bar, P, adj, _, _, _, _, C, B, w, G = generate_random_data(
             args.seed, args.random_graph, args.assets_distribution)
 
-    beta = B / P_bar
+    beta = 1 - B / P_bar
 
     if args.obj == 'SoP':
         v = np.ones(shape=(len(G), 1))
@@ -175,7 +179,11 @@ if __name__ == '__main__':
     elif args.obj == 'FS':
         v = 1 / P_bar
 
+
     n = len(G)
+
+    if args.enable_minorities and args.dataset != 'safegraph':
+        p_minority = np.random.beta(a=2, b=5, size=(n, 1))
 
     if args.num_iters <= 0:
         eps = 1

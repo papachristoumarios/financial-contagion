@@ -52,6 +52,9 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
 
     P_bar, A, C, X, L, b, k, gini, p_minority, v, tol = args
 
+    beta = A.sum(-1)
+    network_based = True
+
     n = A.shape[0]
 
     # Create solver
@@ -82,24 +85,30 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
             for j in range(n):
                 gini_helper_variables[i, j] = solver.NumVar(0, np.inf, 'pi{}{}'.format(i, j))
                 if isinstance(L, int):
-                    solver.Add(-gini_helper_variables[i, j] <= stimuli_variables[i] - stimuli_variables[j])
-                    solver.Add(stimuli_variables[i] - stimuli_variables[j] <= gini_helper_variables[i, j])
+                    if not(network_based) or (network_based and A[i, j] > 0):
+                        solver.Add(-gini_helper_variables[i, j] <= stimuli_variables[i] - stimuli_variables[j])
+                        solver.Add(stimuli_variables[i] - stimuli_variables[j] <= gini_helper_variables[i, j])
 
                 elif isinstance(L, np.ndarray):
-                    solver.Add(-gini_helper_variables[i, j] <= L[i, 0] * stimuli_variables[i] - L[j, 0] * stimuli_variables[j])
-                    solver.Add(stimuli_variables[i] - stimuli_variables[j] <= gini_helper_variables[i, j])
+                    if not(network_based) or (network_based and A[i, j] > 0):
+                        solver.Add(-gini_helper_variables[i, j] <= L[i, 0] * stimuli_variables[i] - L[j, 0] * stimuli_variables[j])
+                        solver.Add(stimuli_variables[i] - stimuli_variables[j] <= gini_helper_variables[i, j])
 
         if isinstance(L, int):
-            if p_minority is None:
+            if p_minority is None and not network_based:
                 solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k)
-            else:
+            elif not(p_minority is None):
                 solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * np.sum(1 - p_minority) * gini * sum([p_minority[i, 0] * stimuli_variables[i] for i in range(n)]))
+            elif network_based:
+                solver.Add(sum([gini_helper_variables[i, j] * A[i, j] for (i, j) in gini_helper_variables]) <= gini * sum([beta[i] * stimuli_variables[i] for i in range(n)]))
 
         elif isinstance(L, np.ndarray):
-            if p_minority is None:
+            if p_minority is None and not network_based:
                 solver.Add(sum(gini_helper_variables.values()) <= 2 * n * gini * k * b)
-            else:
+            elif not(p_minority is None):
                 solver.Add(sum([gini_helper_variables[i, j] * p_minority[i, 0] * (1 - p_minority[j, 0]) for (i, j) in gini_helper_variables]) <= 2 * np.sum(1- p_minority) * gini * sum([p_minority[i, 0] * L[i, 0] * stimuli_variables[i] for i in range(n)]))
+            elif network_based:
+                solver.Add(sum([gini_helper_variables[i, j] * A[i, j] for (i, j) in gini_helper_variables]) <= gini * sum([beta[i] * stimuli_variables[i] * L[i, 0] for i in range(n)]))
 
     # Objective
     solver.Maximize(sum([v[i, 0] * payment_variables[i] for i in range(n)]))
@@ -114,7 +123,7 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
         uniform_variables = np.random.uniform(size=fractional_stimuli.shape)
         realized_stimuli = (uniform_variables <= fractional_stimuli).astype(np.float64)
 
-        if isinstance(L, int) and np.isclose(realized_stimuli.sum(), k, atol=tol):  # Tol should be something like O(sqrt(k))
+        if isinstance(L, int) and realized_stimuli.sum() <= k + tol:  # Tol should be something like O(sqrt(k))
             S = set(np.where(realized_stimuli == 1)[0].tolist())
             break
         elif isinstance(L, np.ndarray) and np.dot(realized_stimuli, L.flatten()) <= k * b + tol:
@@ -252,8 +261,12 @@ def eisenberg_noe_bailout_greedy(P_bar, A, C, L, b, k, V, S, v, num_iters, worke
                 best = value
                 best_arg = u
 
-    if best_arg:
+    if not (best_arg is None):
         S |= {best_arg}
+        if isinstance(L, int):
+            return S, best
+        elif isinstance(L, np.ndarray):
+            return eisenberg_noe_bailout_greedy(P_bar, A, C, L, b, k, S, v, num_iters, workers)
     else:
         best = eisenberg_noe_bailout(
             P_bar, A, C, L, S, None, v, num_iters=num_iters, workers=workers)
@@ -271,7 +284,7 @@ def eisenberg_noe_bailout_greedy_min_default(P_bar, A, C, L, b, k, V, S, eps, nu
                 best = value
                 best_arg = u
 
-    if best_arg:
+    if not(best_arg is None):
         S |= {best_arg}
         if isinstance(L, int):
             return S, best

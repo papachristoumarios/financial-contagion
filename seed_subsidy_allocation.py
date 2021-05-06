@@ -40,6 +40,7 @@ def get_argparser():
     parser.add_argument('--eps', type=float, default=1e-4,
                         help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
     parser.add_argument('-b', type=int, default=10000, help='Rate of increase of availbale budget (if different bailouts are selected)')
+    parser.add_argument('--randperm_only', action='store_true', help='Plot random permutation only for comparison heuristics')
 
     return parser
 
@@ -237,11 +238,11 @@ if __name__ == '__main__':
 
     pageranks = nx.algorithms.pagerank(G)
     pageranks = list(pageranks.items())
-    pageranks = list(sorted(pageranks, key=lambda x: -x[-1]))
+    pageranks = list(sorted(pageranks, key=lambda x: (-x[-1], -x[0])))
 
     centralities = nx.algorithms.centrality.betweenness_centrality(G)
     centralities = list(centralities.items())
-    centralities = list(sorted(centralities, key=lambda x: -x[-1]))
+    centralities = list(sorted(centralities, key=lambda x: (-x[-1], -x[0])))
 
     out_degrees = list(sorted([(v, G.out_degree(v)) for v in G], key=lambda x: -x[-1]))
 
@@ -347,15 +348,23 @@ if __name__ == '__main__':
 
     outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L if isinstance(L, int) else 'custom')
 
-    uncertainty_plot(k_range, [(expected_objective_value_greedy, 'Greedy'),
-                               (expected_objective_value_centralities, 'Top-k Centralities'),
-                               (expected_objective_value_out_degrees, 'Top-k Outdegrees'),
-                               (expected_objective_value_pageranks, 'Top-k Pagerank'),
-                               (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
-                               (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
-                               (expected_objective_value_random, 'Random Permutation')],
-                     outfile_suffix, args.obj, L, b,
-                     num_std=args.num_std)
+    if args.randperm_only:
+        uncertainty_plot(k_range, [(expected_objective_value_greedy, 'Greedy'),
+                                    (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
+                                    (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
+                                    (expected_objective_value_random, 'Random Permutation')],
+                                    outfile_suffix, args.obj, L, b,
+                                    num_std=args.num_std)
+    else:
+        uncertainty_plot(k_range, [(expected_objective_value_greedy, 'Greedy'),
+                                   (expected_objective_value_centralities, 'Top-k Centralities'),
+                                   (expected_objective_value_out_degrees, 'Top-k Outdegrees'),
+                                   (expected_objective_value_pageranks, 'Top-k Pagerank'),
+                                   (expected_objective_value_wealths, 'Top-k Wealths (poorest)'),
+                                   (expected_objective_value_randomized_rounding, 'Randomized Rounding'),
+                                   (expected_objective_value_random, 'Random Permutation')],
+                                   outfile_suffix, args.obj, L, b,
+                                   num_std=args.num_std)
 
     stimuli_plot(k_range, expected_objective_value_randomized_rounding,
                  args.obj, args.untruncated_violin, L, b, outfile_suffix)
