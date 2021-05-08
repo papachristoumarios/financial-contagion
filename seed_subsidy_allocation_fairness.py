@@ -109,6 +109,29 @@ def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, A
 
     plt.savefig('gini_target_gini' + outfile)
 
+    fig, ax = plt.subplots(figsize=(10, 10))
+    disparities = {}
+    for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
+        zs = np.vstack([result[-2] for result in expected_objective_value_randomized_rounding])
+
+        if isinstance(L, int):
+            disparities['Target Gini = {}'.format(gini)] = utils.disparity(zs[-1, :], p_minority, A).sum(-1)
+        elif isinstance(L, np.ndarray):
+            disparities['Target Gini = {}'.format(gini)] =  utils.disparity(zs[-1, :] * L.flatten(), p_minority, A).sum(-1)
+
+    utils.bar_plot(ax, disparities)
+    if isinstance(L, int):
+        plt.title('Disparity per Node for $L = {}$ and $k = {}$'.format(L, k_range[-1]))
+        plt.xlabel('Node')
+    elif isinstance(L, np.ndarray):
+        plt.title('Disparity per Node for custom bailouts with budget increase rate {} and $k = {}$'.format(b, k_range[-1]))
+    plt.ylabel('Disparity')
+    plt.grid(b=None)
+
+    plt.xticks(np.arange(A.shape[0]), np.arange(A.shape[0]), rotation=90)
+    plt.savefig('disparities_target_gini' + outfile)
+
+
 def allocation_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, outfile):
     plt.figure(figsize=(10, 10))
 
@@ -135,6 +158,7 @@ def allocation_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minori
     plt.ylabel('Total Allocation')
 
     plt.savefig('minority_allocation_target_gini' + outfile)
+
 
 
 if __name__ == '__main__':
@@ -250,7 +274,7 @@ if __name__ == '__main__':
                      num_std=args.num_std)
 
     ginis_plot(k_range, expected_objective_value_randomized_ginis,
-                 args.obj, L, b, p_minority, outfile_suffix)
+                 args.obj, L, b, p_minority, A, outfile_suffix)
 
-    allocation_plot(k_range, expected_objective_value_randomized_ginis,
-                 args.obj, L, b, p_minority, outfile_suffix)
+    # allocation_plot(k_range, expected_objective_value_randomized_ginis,
+    #             args.obj, L, b, p_minority, outfile_suffix)
