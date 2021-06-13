@@ -40,126 +40,45 @@ def get_argparser():
     parser.add_argument('--eps', type=float, default=1e-4,
                         help='Parameter in the transformation of the increasing objective to a strictly increasing objective')
     parser.add_argument('-b', type=int, default=10000, help='Rate of increase of availbale budget (if different bailouts are selected)')
-    parser.add_argument('--ginis', type=str, default='', help='Delimited list of gini indices')
     parser.add_argument('--enable_minorities', action='store_true', help='Optimize gini subject to minority properties')
     parser.add_argument('--enable_network', action='store_true', help='Optimize gini subject to network constraints')
     args = parser.parse_args()
-    args.ginis = [float(x) for x in args.ginis.split(',')]
     return args
 
 
-def uncertainty_plot(k_range, results, outfile, obj, L, b, num_std=0.5, show=False):
+def gini_pof_plot(k_range, ginis, results, outfile, obj, L, b, num_std=0.5, show=False):
     plt.figure(figsize=(10, 10))
-    colors = iter(cm.rainbow(np.linspace(0, 1, 2 * len(results))))
+    colors = iter(cm.rainbow(np.linspace(0, 1, 2 * len(k_range))))
     if isinstance(L, int):
         plt.title('{} objective for $L = {}$'.format(obj, L))
-        plt.xlabel('Number of bailed-out nodes $k$')
+        plt.xlabel('Target Gini Coefficient Bound')
     elif isinstance(L, np.ndarray):
         plt.title('{} objective for custom bailouts with budget increase rate {}'.format(obj, b))
-        plt.xlabel('Multiples of budget increase $k$')
-    plt.ylabel(obj)
+        plt.xlabel('Target Gini Coefficient')
+    plt.ylabel('PoF')
 
-    for result, label in results:
-        result_means = np.array([x[0] for x in result])
-        result_std = np.array([x[1] for x in result])
-        if len(result[0]) > 2:
-            opt_lp_means = np.array([x[2] for x in result])
-            opt_lp_std = np.array([x[3] for x in result])
-            c = next(colors)
-            plt.plot(k_range, opt_lp_means, c=c, label='Relaxation Optimum ({})'.format(label))
-            plt.fill_between(k_range, result_means - num_std * result_std,
-                             result_means + num_std * result_std, color=c, alpha=0.3)
+    pofs = []
 
+
+    unconstrained_lp_means = np.array([x[2] for x in results[-1][0]])
+
+    for i, (result, label) in enumerate(results):
+        constrained_lp_means = np.array([x[2] for x in result])
+        pofs.append(unconstrained_lp_means / constrained_lp_means)
+
+    pofs = np.vstack(pofs)
+
+
+    for i, k in enumerate(k_range):
         c = next(colors)
-        plt.plot(k_range, result_means, c=c, label='Rounded ({})'.format(label))
-        plt.fill_between(k_range, result_means - num_std * result_std,
-                         result_means + num_std * result_std, color=c, alpha=0.3)
+        plt.plot(ginis, pofs[:, i], color=c, marker='x', label='k = {}'.format(k))
 
     plt.legend()
-    plt.xlim(k_range[0], k_range[-1])
-    plt.savefig('bailouts_gini_target' + outfile)
+    plt.xlim(ginis[0], ginis[-1])
+    plt.savefig('pof_target_gini' + outfile)
 
     if show:
         plt.show()
-
-def ginis_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, A, outfile):
-    plt.figure(figsize=(10, 10))
-
-    for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
-
-        zs = np.vstack([result[-2] for result in expected_objective_value_randomized_rounding])
-
-        ginis = np.zeros_like(k_range).astype(np.float64)
-
-        for i in range(len(ginis)):
-            if isinstance(L, int):
-                ginis[i] = utils.gini(zs[i, :], p_minority, A)
-            elif isinstance(L, np.ndarray):
-                ginis[i] = utils.gini(zs[i, :].flatten() * L.flatten(), p_minority, A)
-
-        plt.plot(k_range, ginis, label='Target Gini = {}'.format(gini))
-
-    plt.legend()
-    if isinstance(L, int):
-        plt.title('Gini Coefficients for $L = {}$'.format(L))
-        plt.xlabel('Number of bailed-out nodes $k$')
-    elif isinstance(L, np.ndarray):
-        plt.title('Gini Coefficients for custom bailouts with budget increase rate {}'.format(b))
-    plt.ylabel('Gini Coefficient')
-
-    plt.savefig('gini_target_gini' + outfile)
-
-    fig, ax = plt.subplots(figsize=(10, 10))
-    disparities = {}
-    for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
-        zs = np.vstack([result[-2] for result in expected_objective_value_randomized_rounding])
-
-        if isinstance(L, int):
-            disparities['Target Gini = {}'.format(gini)] = utils.disparity(zs[-1, :], p_minority, A).sum(-1)
-        elif isinstance(L, np.ndarray):
-            disparities['Target Gini = {}'.format(gini)] =  utils.disparity(zs[-1, :] * L.flatten(), p_minority, A).sum(-1)
-
-    utils.bar_plot(ax, disparities)
-    if isinstance(L, int):
-        plt.title('Disparity per Node for $L = {}$ and $k = {}$'.format(L, k_range[-1]))
-        plt.xlabel('Node')
-    elif isinstance(L, np.ndarray):
-        plt.title('Disparity per Node for custom bailouts with budget increase rate {} and $k = {}$'.format(b, k_range[-1]))
-    plt.ylabel('Disparity')
-    plt.grid(b=None)
-
-    plt.xticks(np.arange(A.shape[0]), np.arange(A.shape[0]), rotation=90)
-    plt.savefig('disparities_target_gini' + outfile)
-
-
-def allocation_plot(k_range, expected_objective_value_ginis, obj, L, b, p_minority, outfile):
-    plt.figure(figsize=(10, 10))
-
-    for gini, expected_objective_value_randomized_rounding in expected_objective_value_ginis.items():
-
-        zs = np.vstack([result[-2] for result in expected_objective_value_randomized_rounding])
-
-        allocation_minority = np.zeros_like(k_range).astype(np.float64)
-
-        for i in range(len(ginis)):
-            if isinstance(L, int):
-                allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L).sum()
-            elif isinstance(L, np.ndarray):
-                allocation_minority[i] = (zs[i, :].flatten() * p_minority.flatten() * L).sum()
-
-        plt.plot(k_range, allocation_minority, label='Target Gini = {}'.format(gini))
-
-    plt.legend()
-    if isinstance(L, int):
-        plt.title('Minority Stimulus Allocation for $L = {}$'.format(L))
-        plt.xlabel('Number of bailed-out nodes $k$')
-    elif isinstance(L, np.ndarray):
-        plt.title('Gini Coefficients for custom bailouts with budget increase rate {}'.format(b))
-    plt.ylabel('Total Allocation')
-
-    plt.savefig('minority_allocation_target_gini' + outfile)
-
-
 
 if __name__ == '__main__':
     args = get_argparser()
@@ -175,7 +94,7 @@ if __name__ == '__main__':
 
     p_minority = None
 
-    if not (args.enable_minorities ^ args.enable_network):
+    if (args.enable_minorities or args.enable_network) and not (args.enable_minorities ^ args.enable_network):
         raise Exception('Only one of the arguments can be used')
 
     if args.dataset == 'german_banks':
@@ -228,13 +147,13 @@ if __name__ == '__main__':
     b = args.b
 
     if args.max_k <= 0:
-        k_range = np.arange(1, 1 + len(G))
+        k_range = np.arange(1, 1 + len(G), len(G) // 6)
     else:
-        k_range = np.arange(1, 1 + args.max_k)
+        k_range = np.arange(1, 1 + args.max_k, args.max_k // 6)
 
     V = set(list(G.nodes()))
     eps = args.eps
-    ginis = args.ginis
+    ginis = np.linspace(0, 1, 6)
 
     expected_objective_value_randomized_ginis = collections.defaultdict(list)
 
@@ -269,12 +188,6 @@ if __name__ == '__main__':
 
     outfile_suffix = '{}_{}_{}.png'.format(args.obj, args.dataset, L if isinstance(L, int) else 'custom')
 
-    uncertainty_plot(k_range, [(val, 'Target Gini = {}'.format(key)) for key, val in expected_objective_value_randomized_ginis.items()],
+    gini_pof_plot(k_range, ginis, [(val, 'Target Gini = {}'.format(key)) for key, val in expected_objective_value_randomized_ginis.items()],
                      outfile_suffix, args.obj, L, b,
                      num_std=args.num_std)
-
-    ginis_plot(k_range, expected_objective_value_randomized_ginis,
-                 args.obj, L, b, p_minority, A, outfile_suffix)
-
-    # allocation_plot(k_range, expected_objective_value_randomized_ginis,
-    #             args.obj, L, b, p_minority, outfile_suffix)

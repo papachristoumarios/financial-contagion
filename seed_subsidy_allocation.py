@@ -305,7 +305,7 @@ if __name__ == '__main__':
 
 
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding(
-                P_bar, A, C, L, b, k, None, None, v, tol=tol, num_iters=num_iters, workers=workers))
+                P_bar, A, C, L, b, k, None, None, v, network_based=False, tol=tol, num_iters=num_iters, workers=workers))
 
         elif args.obj == 'MD':
 
@@ -340,7 +340,7 @@ if __name__ == '__main__':
                 P_bar, A, C, L, S_random, None, eps, num_iters=num_iters, workers=workers))
 
             expected_objective_value_randomized_rounding.append(eisenberg_noe_bailout_randomized_rounding_min_default(
-                P_bar, A, C, L, b, k, None, None, eps, tol=tol, num_iters=num_iters, workers=workers))
+                P_bar, A, C, L, b, k, None, None, eps, network_based=False, tol=tol, num_iters=num_iters, workers=workers))
 
         pbar.update()
 
