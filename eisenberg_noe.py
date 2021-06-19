@@ -50,11 +50,9 @@ def process_financial_network(G):
 
 def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
 
-    P_bar, A, C, X, L, b, k, gini, p_minority, v, tol = args
+    P_bar, A, C, X, L, b, k, gini, p_minority, v, tol, network_based, rounding = args
 
     beta = A.sum(-1)
-    network_based = True
-
     n = A.shape[0]
 
     # Create solver
@@ -74,16 +72,17 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
             solver.Add(sum([(int(i == j) - A[j, i]) * payment_variables[j]
                             for j in range(n)]) <= C[i, 0] - X[i, 0] + L[i, 0] * stimuli_variables[i])
 
-    if isinstance(L, int):
-        solver.Add(sum(stimuli_variables) == k)
+    if isinstance(L, int) or isinstance(L, float):
+        solver.Add(sum(stimuli_variables) <= k)
     elif isinstance(L, np.ndarray):
         solver.Add(sum([stimuli_variables[i] * L[i, 0] for i in range(len(stimuli_variables))]) <= k * b)
 
-    if gini:
+    if not(gini is None):
         gini_helper_variables = {}
         for i in range(n):
             for j in range(n):
-                gini_helper_variables[i, j] = solver.NumVar(0, np.inf, 'pi{}{}'.format(i, j))
+                if not(network_based) or (network_based and A[i, j] > 0):
+                    gini_helper_variables[i, j] = solver.NumVar(0, np.inf, 'pi{}{}'.format(i, j))
                 if isinstance(L, int):
                     if not(network_based) or (network_based and A[i, j] > 0):
                         solver.Add(-gini_helper_variables[i, j] <= stimuli_variables[i] - stimuli_variables[j])
@@ -92,7 +91,7 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
                 elif isinstance(L, np.ndarray):
                     if not(network_based) or (network_based and A[i, j] > 0):
                         solver.Add(-gini_helper_variables[i, j] <= L[i, 0] * stimuli_variables[i] - L[j, 0] * stimuli_variables[j])
-                        solver.Add(stimuli_variables[i] - stimuli_variables[j] <= gini_helper_variables[i, j])
+                        solver.Add(L[i, 0] * stimuli_variables[i] - L[j, 0] * stimuli_variables[j] <= gini_helper_variables[i, j])
 
         if isinstance(L, int):
             if p_minority is None and not network_based:
@@ -117,27 +116,32 @@ def eisenberg_noe_bailout_randomized_rounding_given_shock(args):
     status = solver.Solve()
 
     fractional_stimuli = np.array([z.solution_value() for z in stimuli_variables])
-
-
-    while True:
-        uniform_variables = np.random.uniform(size=fractional_stimuli.shape)
-        realized_stimuli = (uniform_variables <= fractional_stimuli).astype(np.float64)
-
-        if isinstance(L, int) and realized_stimuli.sum() <= k + tol:  # Tol should be something like O(sqrt(k))
-            S = set(np.where(realized_stimuli == 1)[0].tolist())
-            break
-        elif isinstance(L, np.ndarray) and np.dot(realized_stimuli, L.flatten()) <= k * b + tol:
-            S = set(np.where(realized_stimuli == 1)[0].tolist())
-            break
-
-    sol = eisenberg_noe_bailout_given_shock((P_bar, A, C, X, L, S, None, v))
     opt_lp = solver.Objective().Value()
 
-    return S, fractional_stimuli, sol, opt_lp
+    # import pdb; pdb.set_trace()
+
+    if rounding:
+        while True:
+            uniform_variables = np.random.uniform(size=fractional_stimuli.shape)
+            realized_stimuli = (uniform_variables <= fractional_stimuli).astype(np.float64)
+
+            if isinstance(L, int) and realized_stimuli.sum() <= k + tol:  # Tol should be something like O(sqrt(k))
+                S = set(np.where(realized_stimuli == 1)[0].tolist())
+                break
+            elif isinstance(L, np.ndarray) and np.dot(realized_stimuli, L.flatten()) <= k * b + tol:
+                S = set(np.where(realized_stimuli == 1)[0].tolist())
+                break
+
+        sol = eisenberg_noe_bailout_given_shock((P_bar, A, C, X, L, S, None, v))
+
+        return S, fractional_stimuli, sol, opt_lp
+
+    else:
+        return opt_lp, fractional_stimuli
 
 def eisenberg_noe_bailout_randomized_rounding_min_default_given_shock(args):
 
-    P_bar, A, C, X, L, b, k, gini, p_minority, eps, tol = args
+    P_bar, A, C, X, L, b, k, gini, p_minority, eps, tol, network_based, rounding = args
 
     n = A.shape[0]
 
@@ -236,7 +240,8 @@ def eisenberg_noe_bailout(P_bar, A, C, L, S, u, v, num_iters, workers):
 
     for i in range(num_iters):
         # X = generate_uniform_iid_shocks(C)
-        X = generate_beta_iid_shocks(C)
+        # X = generate_beta_iid_shocks(C)
+        X = generate_point_iid_shocks(C)
         shocks.append(X)
 
     args = [(P_bar, A, C, X, L, S, u, v) for X in shocks]
@@ -301,7 +306,8 @@ def eisenberg_noe_bailout_min_default(P_bar, A, C, L, S, u, eps, num_iters, work
 
     for i in range(num_iters):
         # X = generate_uniform_iid_shocks(C)
-        X = generate_beta_iid_shocks(C)
+        # X = generate_beta_iid_shocks(C)
+        X = generate_point_iid_shocks(C)
         shocks.append(X)
 
     args = [(P_bar, A, C, X, L, S, u, eps) for X in shocks]
@@ -315,67 +321,104 @@ def eisenberg_noe_bailout_min_default(P_bar, A, C, L, S, u, eps, num_iters, work
 
     return marginal_gains_objective_mean, marginal_gains_objective_stdev
 
-def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, b, k, gini, p_minority, v, tol, num_iters, workers):
+def eisenberg_noe_bailout_randomized_rounding(P_bar, A, C, L, b, k, gini, p_minority, v, tol, network_based, num_iters, workers, rounding=True):
     shocks = []
 
     for i in range(num_iters):
         # X = generate_uniform_iid_shocks(C)
-        X = generate_beta_iid_shocks(C)
+        # X = generate_beta_iid_shocks(C)
+        X = generate_point_iid_shocks(C)
         shocks.append(X)
 
-    args = [(P_bar, A, C, X, L, b, k, gini, p_minority, v, tol) for X in shocks]
+    args = [(P_bar, A, C, X, L, b, k, gini, p_minority, v, tol, network_based, rounding) for X in shocks]
 
     with multiprocessing.pool.ThreadPool(workers) as pool:
         marginal_gains = pool.map(
             eisenberg_noe_bailout_randomized_rounding_given_shock, args)
 
-    marginal_gains_sets = [x[0] for x in marginal_gains]
-    marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
-    marginal_gains_sol = [x[2] for x in marginal_gains]
-    marginal_gains_opt_lp = [x[3] for x in marginal_gains]
+    if rounding:
 
-    marginal_gains_sol_mean = np.mean(marginal_gains_sol)
-    marginal_gains_sol_stdev = np.std(marginal_gains_sol, ddof=1)
+        marginal_gains_sets = [x[0] for x in marginal_gains]
+        marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
+        marginal_gains_sol = [x[2] for x in marginal_gains]
+        marginal_gains_opt_lp = [x[3] for x in marginal_gains]
 
-    marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
-    marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
+        marginal_gains_sol_mean = np.mean(marginal_gains_sol)
+        marginal_gains_sol_stdev = np.std(marginal_gains_sol, ddof=1)
 
-    marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
-    marginal_gains_fractional_stimuli_stdev = np.std(
-        marginal_gains_fractional_stimuli, axis=0, ddof=1)
+        marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
+        marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
 
-    return marginal_gains_sol_mean, marginal_gains_sol_stdev, marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
+        marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
+        marginal_gains_fractional_stimuli_stdev = np.std(
+            marginal_gains_fractional_stimuli, axis=0, ddof=1)
 
-def eisenberg_noe_bailout_randomized_rounding_min_default(P_bar, A, C, L, b, k, gini, p_minority, eps, tol, num_iters, workers):
+        return marginal_gains_sol_mean, marginal_gains_sol_stdev, marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
+
+    else:
+
+        marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
+        marginal_gains_opt_lp = [x[0] for x in marginal_gains]
+
+        marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
+        marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
+
+        marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
+        marginal_gains_fractional_stimuli_stdev = np.std(
+            marginal_gains_fractional_stimuli, axis=0, ddof=1)
+
+        return marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
+
+
+
+def eisenberg_noe_bailout_randomized_rounding_min_default(P_bar, A, C, L, b, k, gini, p_minority, eps, tol, network_based, num_iters, workers, rounding=True):
     shocks = []
 
     for i in range(num_iters):
         # X = generate_uniform_iid_shocks(C)
-        X = generate_beta_iid_shocks(C)
+        # X = generate_beta_iid_shocks(C)
+        X = generate_point_iid_shocks(C)
         shocks.append(X)
 
-    args = [(P_bar, A, C, X, L, b, k, gini, p_minority, eps, tol) for X in shocks]
+    args = [(P_bar, A, C, X, L, b, k, gini, p_minority, eps, tol, network_based, rounding) for X in shocks]
 
     with multiprocessing.pool.ThreadPool(workers) as pool:
         marginal_gains = pool.map(
             eisenberg_noe_bailout_randomized_rounding_min_default_given_shock, args)
 
-    marginal_gains_sets = [x[0] for x in marginal_gains]
-    marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
-    marginal_gains_sol = [x[2] for x in marginal_gains]
-    marginal_gains_opt_lp = [x[3] for x in marginal_gains]
 
-    marginal_gains_sol_mean = np.mean(marginal_gains_sol)
-    marginal_gains_sol_stdev = np.std(marginal_gains_sol, ddof=1)
+    if rounding:
 
-    marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
-    marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
+        marginal_gains_sets = [x[0] for x in marginal_gains]
+        marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
+        marginal_gains_sol = [x[2] for x in marginal_gains]
+        marginal_gains_opt_lp = [x[3] for x in marginal_gains]
 
-    marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
-    marginal_gains_fractional_stimuli_stdev = np.std(
-        marginal_gains_fractional_stimuli, axis=0, ddof=1)
+        marginal_gains_sol_mean = np.mean(marginal_gains_sol)
+        marginal_gains_sol_stdev = np.std(marginal_gains_sol, ddof=1)
 
-    return marginal_gains_sol_mean, marginal_gains_sol_stdev, marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
+        marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
+        marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
+
+        marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
+        marginal_gains_fractional_stimuli_stdev = np.std(
+            marginal_gains_fractional_stimuli, axis=0, ddof=1)
+
+        return marginal_gains_sol_mean, marginal_gains_sol_stdev, marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
+
+    else:
+
+        marginal_gains_fractional_stimuli = np.vstack([x[1] for x in marginal_gains])
+        marginal_gains_opt_lp = [x[0] for x in marginal_gains]
+
+        marginal_gains_opt_lp_mean = np.mean(marginal_gains_opt_lp)
+        marginal_gains_opt_lp_stdev = np.std(marginal_gains_opt_lp, ddof=1)
+
+        marginal_gains_fractional_stimuli_mean = np.mean(marginal_gains_fractional_stimuli, axis=0)
+        marginal_gains_fractional_stimuli_stdev = np.std(
+            marginal_gains_fractional_stimuli, axis=0, ddof=1)
+
+        return marginal_gains_opt_lp_mean, marginal_gains_opt_lp_stdev, marginal_gains_fractional_stimuli_mean, marginal_gains_fractional_stimuli_stdev
 
 def min_budget_for_solvency(P_bar, A, C, k, v, delta, num_iters, workers):
 

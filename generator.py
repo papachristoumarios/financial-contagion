@@ -55,3 +55,40 @@ def generate_scale_free(n, seed=100):
 
 def generate_er(n, p=0.8, seed=100):
     return nx.generators.random_graphs.gnp_random_graph(n, p, seed=seed, directed=True)
+
+def generate_sbm_pair(n, D, stochastic=False, seed=100):
+    sizes = [n//2, n//2]
+
+    if stochastic:
+        p = [[1, D], [D, 1]]
+        G = nx.DiGraph(nx.generators.community.stochastic_block_model(sizes, p, seed=seed, directed=False))
+    else:
+        p = [[1, 0], [0, 1]]
+        G = nx.generators.community.stochastic_block_model(sizes, p, seed=seed, directed=False)
+
+        for i in range(0, n // 2 - D, D):
+            for j in range(D):
+                for k in range(D):
+                    G.add_edge(i + j, n // 2 + i + k)
+
+        G =  nx.DiGraph(G)
+
+    liabilities = nx.to_numpy_array(G)
+    outdegree = liabilities.sum(0)
+    indegree = liabilities.sum(-1)
+
+    internal_assets = liabilities.sum(-1).reshape((n, 1))
+    internal_liabilities = liabilities.sum(0).reshape((n, 1))
+
+    external_assets =  n * np.ones((n, 1))
+    external_liabilities = np.ones((n, 1))
+
+    P_bar = internal_liabilities + external_liabilities
+
+    A = np.copy(liabilities)
+    for i in range(liabilities.shape[0]):
+        A[i] /= P_bar[i]
+
+    wealth = external_assets + internal_assets - external_liabilities - internal_liabilities
+
+    return A, P_bar, liabilities, internal_assets, internal_liabilities, outdegree, indegree, external_assets, external_liabilities, wealth, G
