@@ -39,7 +39,7 @@ Please use the following citation when referring to the paper and the source cod
 @article{papachristou2021allocating,
   title={Allocating Stimulus Checks in Times of Crisis},
   author={Papachristou, Marios and Kleinberg, Jon},
-  journal={arXiv preprint arXiv:2106.07560},
-  year={2021}
+  journal={Proceedings of The Web Conference},
+  year={2022}
 }
 ```
